@@ -96,19 +96,6 @@ public class Container extends JPanel implements Observer {
         this.add(confirmBtn);
     }
 
-    private void buildPasswordScreen() {
-        JLabel lblPassword = new JLabel("Password:");
-        final JPasswordField pfPassword = new JPasswordField(8);
-        lblPassword.setLabelFor(pfPassword);
-
-        JPanel panel = new JPanel();
-        panel.setPreferredSize(new Dimension(300, 110));
-        panel.add(lblPassword);
-        panel.add(pfPassword);
-        this.add(panel);
-        this.repaint();
-        this.updateUI();
-    }
 
     private void Clear() {
         this.removeAll();
