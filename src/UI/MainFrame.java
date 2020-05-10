@@ -22,7 +22,7 @@ public class MainFrame extends JFrame {
 
     private CtrlRules Controller = CtrlRules.getCtrlRules();
     final int LARG_DEFAULT = 400;
-    final int ALT_DEFAULT = 160;
+    final int ALT_DEFAULT = 260;
 
     public MainFrame(CtrlRules c) {
         Toolkit tk = Toolkit.getDefaultToolkit();

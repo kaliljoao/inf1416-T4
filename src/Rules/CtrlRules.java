@@ -7,6 +7,7 @@ public class CtrlRules implements Observable {
 
     private static CtrlRules ctrl = null;
     List<Observer> lob = new ArrayList<Observer>();
+    String Login;
 
     CtrlRules() {
 
@@ -16,6 +17,11 @@ public class CtrlRules implements Observable {
         if (ctrl == null)
             ctrl = new CtrlRules();
         return ctrl;
+    }
+
+    public void setLogin(String text) {
+        this.Login = text;
+        System.out.println(text);
     }
 
     public void addObserver(Observer o) {
