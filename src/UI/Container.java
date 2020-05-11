@@ -24,6 +24,7 @@ public class Container extends JPanel implements Observer {
     private CtrlRules Ctrl;
     private JButton[] arrBtns = new JButton[]{new JButton(), new JButton(), new JButton(), new JButton(), new JButton()};
     private String passwordText = "";
+    ArrayList<Object> passwordWithNumbersArray = new ArrayList<Object>();
 
 
     public Container(MainFrame mainFrame) {
@@ -37,6 +38,7 @@ public class Container extends JPanel implements Observer {
         JLabel lblPassword = new JLabel("Senha:");
         JPasswordField pfPassword = new JPasswordField();
         pfPassword.setPreferredSize(new Dimension(150, 30));
+        pfPassword.setEditable(false);
 
 
         Ctrl = CtrlRules.getCtrlRules();
@@ -49,7 +51,49 @@ public class Container extends JPanel implements Observer {
         menu.add(lblPassword);
         menu.add(pfPassword);
 
+        addPasswordButtons(pfPassword, menu);
+        JButton confirmBtn = new JButton("Entrar");
+        confirmBtn.setPreferredSize(new Dimension(250, 20));
+
+        this.add(menu);
+        this.add(confirmBtn);
+
+    }
+
+    private void changePasswordButtons(JPanel menu, JPasswordField pfPassword) {
+        ArrayList<Integer> usedNumbers = new ArrayList<Integer>();
+        ArrayList<Integer> Numbers = generateArrayNumber();
+        Random rand = new Random();
+
+        for (int i = 0; i < 5; i++) {
+
+            int position1 = rand.nextInt(Numbers.size());
+            int num1 = Numbers.get(position1);
+            Numbers.remove(position1);
+
+            int position2 = rand.nextInt(Numbers.size());
+            int num2 = Numbers.get(position2);
+            Numbers.remove(position2);
+
+            usedNumbers.add(num1);
+            usedNumbers.add(num2);
+
+            arrBtns[i].setText(String.valueOf(num1) + " ou " + String.valueOf(num2));
+            arrBtns[i].removeActionListener(arrBtns[i].getActionListeners()[0]);
+            arrBtns[i].addActionListener(new ActionListener() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    passwordText += ".";
+                    pfPassword.setText(passwordText);
+                    changePasswordButtons(menu, pfPassword);
+                }
+            });
+        }
+    }
+
+    private ArrayList<Integer> generateArrayNumber() {
         ArrayList<Integer> Numbers = new ArrayList<Integer>();
+
         Numbers.add(0);
         Numbers.add(1);
         Numbers.add(2);
@@ -60,8 +104,13 @@ public class Container extends JPanel implements Observer {
         Numbers.add(7);
         Numbers.add(8);
         Numbers.add(9);
+        return Numbers;
+    }
 
+    private void addPasswordButtons(JPasswordField pfPassword, JPanel menu) {
         ArrayList<Integer> usedNumbers = new ArrayList<Integer>();
+        ArrayList<Integer> Numbers = generateArrayNumber();
+
 
         Random rand = new Random();
 
@@ -83,17 +132,14 @@ public class Container extends JPanel implements Observer {
             arrBtns[i].addActionListener(new ActionListener() {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    passwordText += String.valueOf(num1);
+                    passwordText += ".";
                     pfPassword.setText(passwordText);
+                    changePasswordButtons(menu, pfPassword);
                 }
             });
             menu.add(arrBtns[i]);
         }
-        JButton confirmBtn = new JButton("Entrar");
-        confirmBtn.setPreferredSize(new Dimension(250, 20));
 
-        this.add(menu);
-        this.add(confirmBtn);
     }
 
 
