@@ -1,5 +1,6 @@
 package Rules;
 
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -9,11 +10,11 @@ public class CtrlRules implements Observable {
     List<Observer> lob = new ArrayList<Observer>();
     String Login;
 
-    CtrlRules() {
-
+    CtrlRules() throws SQLException, ClassNotFoundException {
+        DbSingletonController.getInstance();
     }
 
-    public static CtrlRules getCtrlRules() {
+    public static CtrlRules getCtrlRules() throws SQLException, ClassNotFoundException {
         if (ctrl == null)
             ctrl = new CtrlRules();
         return ctrl;

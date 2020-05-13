@@ -12,6 +12,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
+import java.sql.SQLException;
 import java.util.ArrayList;
 
 import javax.swing.*;
@@ -21,10 +22,10 @@ import com.sun.glass.events.KeyEvent;
 public class MainFrame extends JFrame {
 
     private CtrlRules Controller = CtrlRules.getCtrlRules();
-    final int LARG_DEFAULT = 400;
+    final int LARG_DEFAULT = 300;
     final int ALT_DEFAULT = 260;
 
-    public MainFrame(CtrlRules c) {
+    public MainFrame(CtrlRules c) throws SQLException, ClassNotFoundException {
         Toolkit tk = Toolkit.getDefaultToolkit();
         Dimension screenSize = tk.getScreenSize();
         int sl = screenSize.width;
@@ -41,7 +42,7 @@ public class MainFrame extends JFrame {
         this.add(container, BorderLayout.CENTER);
     }
 
-    public static void main(String args[]) {
+    public static void main(String args[]) throws SQLException, ClassNotFoundException {
         MainFrame frame = new MainFrame(CtrlRules.getCtrlRules());
         frame.setVisible(true);
     }

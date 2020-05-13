@@ -1,19 +1,19 @@
 package UI;
-
+import java.io.*;
+import java.security.NoSuchAlgorithmException;
+import java.sql.Connection;
+import java.sql.DriverManager;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.sql.SQLException;
 import java.util.ArrayList;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
 import java.util.Random;
-
 import javax.swing.JFileChooser;
 import javax.swing.filechooser.FileSystemView;
 
 import Rules.*;
+import sun.rmi.runtime.Log;
 
 import javax.swing.*;
 
@@ -24,22 +24,18 @@ public class Container extends JPanel implements Observer {
     private CtrlRules Ctrl;
     private JButton[] arrBtns = new JButton[]{new JButton(), new JButton(), new JButton(), new JButton(), new JButton()};
     private String passwordText = "";
-    ArrayList<Object> passwordWithNumbersArray = new ArrayList<Object>();
+    private ArrayList<Object> passwordWithNumbersArray = new ArrayList<Object>();
+    private String Login;
 
 
-    public Container(MainFrame mainFrame) {
+    public Container(MainFrame mainFrame) throws SQLException, ClassNotFoundException {
+        AuthController.getInstance();
         this.setAlignmentX(JComponent.CENTER_ALIGNMENT);
         Frame = mainFrame;
 
         JTextField loginArea = new JTextField();
         loginArea.setPreferredSize(new Dimension(200, 30));
         JLabel loginLabel = new JLabel("Login:");
-
-        JLabel lblPassword = new JLabel("Senha:");
-        JPasswordField pfPassword = new JPasswordField();
-        pfPassword.setPreferredSize(new Dimension(150, 30));
-        pfPassword.setEditable(false);
-
 
         Ctrl = CtrlRules.getCtrlRules();
         Ctrl.addObserver(this);
@@ -48,17 +44,91 @@ public class Container extends JPanel implements Observer {
         menu.setPreferredSize(new Dimension(250, 200));
         menu.add(loginLabel);
         menu.add(loginArea);
-        menu.add(lblPassword);
-        menu.add(pfPassword);
 
-        addPasswordButtons(pfPassword, menu);
-        JButton confirmBtn = new JButton("Entrar");
+        JButton confirmBtn = new JButton("Validar");
         confirmBtn.setPreferredSize(new Dimension(250, 20));
-
+        confirmBtn.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (AuthController.findUserByLogin(loginArea.getText())) {
+                    Login = loginArea.getText();
+                    changeToPasswordScreen();
+                }
+            }
+        });
         this.add(menu);
         this.add(confirmBtn);
-
     }
+
+    private void changeToPasswordScreen() {
+        Clear();
+        JLabel lblPassword = new JLabel("Senha:");
+        JPasswordField pfPassword = new JPasswordField();
+        pfPassword.setPreferredSize(new Dimension(150, 30));
+        pfPassword.setEditable(false);
+        JPanel menu = new JPanel();
+        menu.setPreferredSize(new Dimension(250, 200));
+        menu.add(lblPassword);
+        menu.add(pfPassword);
+        addPasswordButtons(pfPassword, menu);
+
+        JButton clearBtn = new JButton("Limpar senha");
+        clearBtn.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                passwordText = "";
+                pfPassword.setText(passwordText);
+                passwordWithNumbersArray.clear();
+            }
+        });
+        JButton validateBtn = new JButton("Validar");
+        validateBtn.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                try {
+                    if (AuthController.validatePassword(Login, passwordWithNumbersArray)) {
+                        changeToFileAuthenticationScreen();
+                    }
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                } catch (UnsupportedEncodingException ex) {
+                    ex.printStackTrace();
+                } catch (NoSuchAlgorithmException ex) {
+                    ex.printStackTrace();
+                }
+                changeToFileAuthenticationScreen();
+            }
+        });
+        this.add(menu);
+        this.add(clearBtn);
+        this.add(validateBtn);
+    }
+
+    private void changeToFileAuthenticationScreen() {
+        Clear();
+        JPanel menu = new JPanel();
+        menu.setPreferredSize(new Dimension(250, 200));
+        JLabel title = new JLabel("Indique a private key:");
+        menu.add(title);
+        JButton btnArq = new JButton("Arquivo");
+        btnArq.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                JFileChooser fileChooser = new JFileChooser();
+                fileChooser.showOpenDialog(null);
+                File f = fileChooser.getSelectedFile();
+                String filename = f.getAbsolutePath();
+            }
+        });
+        menu.add(btnArq);
+        JLabel secretPhrase = new JLabel("Frase secreta:");
+        menu.add(secretPhrase);
+        JTextField secretPhraseArea = new JTextField();
+        secretPhraseArea.setPreferredSize(new Dimension(150, 30));
+        menu.add(secretPhraseArea);
+        this.add(menu);
+    }
+
 
     private void changePasswordButtons(JPanel menu, JPasswordField pfPassword) {
         ArrayList<Integer> usedNumbers = new ArrayList<Integer>();
@@ -84,6 +154,7 @@ public class Container extends JPanel implements Observer {
                 @Override
                 public void actionPerformed(ActionEvent e) {
                     passwordText += ".";
+                    passwordWithNumbersArray.add(new String[]{((JButton) e.getSource()).getText().split(" ou ")[0], ((JButton) e.getSource()).getText().split(" ou ")[1]});
                     pfPassword.setText(passwordText);
                     changePasswordButtons(menu, pfPassword);
                 }
@@ -133,6 +204,7 @@ public class Container extends JPanel implements Observer {
                 @Override
                 public void actionPerformed(ActionEvent e) {
                     passwordText += ".";
+                    passwordWithNumbersArray.add(new String[]{((JButton) e.getSource()).getText().split(" ou ")[0], ((JButton) e.getSource()).getText().split(" ou ")[1]});
                     pfPassword.setText(passwordText);
                     changePasswordButtons(menu, pfPassword);
                 }
@@ -146,6 +218,7 @@ public class Container extends JPanel implements Observer {
     private void Clear() {
         this.removeAll();
         this.repaint();
+        this.updateUI();
     }
 
 
