@@ -35,6 +35,9 @@ public class DbSingletonController {
         return rs;
     }
 
+    public static PreparedStatement setPreparedStatement (String query) throws SQLException {
+        return connection.prepareStatement(query);
+    }
 
     public static void closeConnection() {
         try {

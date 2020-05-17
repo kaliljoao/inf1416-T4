@@ -1,19 +1,26 @@
 package Rules;
 
-import java.io.UnsupportedEncodingException;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
+import javax.crypto.*;
+import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.security.*;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.sql.*;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
+
 
 public class AuthController {
 
     private static AuthController auth = null;
     final protected static char[] hexArray = "0123456789ABCDEF".toCharArray();
-
 
     private AuthController() {
     }
@@ -34,7 +41,7 @@ public class AuthController {
             DbSingletonController.createStatement();
             rs = DbSingletonController.executeQuery(String.format("select * from Usuario where email = '%s'", email));
             if (rs != null && rs.next()) {
-                String login = rs.getString(2);
+                String login = rs.getString(3);
                 if (email.equalsIgnoreCase(login)) {
                     DbSingletonController.closeConnection();
                     return true;
@@ -51,7 +58,7 @@ public class AuthController {
         ResultSet rs = null;
         DbSingletonController.createConnection();
         DbSingletonController.createStatement();
-        rs = DbSingletonController.executeQuery(String.format("select hashedPassword ,password_key from Usuario where email='%s'", login));
+        rs = DbSingletonController.executeQuery(String.format("select hashedPassword ,salt from Usuario where email='%s'", login));
         if (rs != null && rs.next()) {
             String dbhashedPassword = rs.getString(1);
             int dbSalt = rs.getInt(2);
@@ -130,4 +137,98 @@ public class AuthController {
             throw ex;
         }
     }
+
+    public static PrivateKey getBased64PrivateKey (String fraseSecreta, File userKeyFile)
+            throws NoSuchAlgorithmException,
+            NoSuchProviderException, NoSuchPaddingException, InvalidKeyException,
+            IOException, BadPaddingException, IllegalBlockSizeException,
+            InvalidKeySpecException
+    {
+        SecureRandom pnrg = SecureRandom.getInstance("SHA1PRNG");
+        byte[] fraseSecretaBytes = fraseSecreta.getBytes();
+        pnrg.setSeed(fraseSecretaBytes);
+
+        KeyGenerator keyGen = KeyGenerator.getInstance("DES");
+        keyGen.init(pnrg);
+        Key key = keyGen.generateKey();
+
+
+        Cipher cipher = Cipher.getInstance("DES/ECB/PKCS5Padding");
+        cipher.init(Cipher.DECRYPT_MODE, key);
+
+        Path keyPath = Paths.get(userKeyFile.getPath());
+        byte[] newPlainText = cipher.doFinal(Files.readAllBytes(keyPath));
+        String userKeyBased64 = new String(newPlainText, "UTF8");
+
+        String[] userKeyBased64Array = Arrays.copyOfRange(userKeyBased64.split("\n"),1,userKeyBased64.split("\n").length -1);
+        String only64BasedPrivateKey = Arrays.toString(userKeyBased64Array);
+        only64BasedPrivateKey = only64BasedPrivateKey.substring(1,only64BasedPrivateKey.length() - 1);
+        byte[] encodedKeybased64 = Base64.getMimeDecoder().decode(only64BasedPrivateKey);
+
+        PKCS8EncodedKeySpec encoded = new PKCS8EncodedKeySpec(encodedKeybased64);
+        KeyFactory factory = KeyFactory.getInstance("RSA");
+        return factory.generatePrivate(encoded);
+    }
+
+    public static void setUserCertificate(String login) throws SQLException, FileNotFoundException {
+        DbSingletonController.createConnection();
+        DbSingletonController.createStatement();
+
+        String query = "Update Usuario" +
+                       " set certificado = ?" +
+                       " where email='jpkalil@keener.io' ";
+
+        PreparedStatement statement = DbSingletonController.setPreparedStatement(query);
+
+        FileReader reader = new FileReader("Keys/user01-x509.crt");
+        statement.setCharacterStream(1, reader);
+        statement.execute();
+
+    }
+
+    public static PublicKey getUserPublicKeyFromCertificate (String login) throws SQLException, CertificateException {
+        ArrayList<String> Based64Certificate = new ArrayList<String>();
+        String cert = "";
+
+        boolean is64BasedCertificate = false;
+        ResultSet rs = null;
+        DbSingletonController.createConnection();
+        DbSingletonController.createStatement();
+        rs = DbSingletonController.executeQuery(String.format("select certificado from Usuario where email='%s'", login));
+        if (rs != null && rs.next()) {
+            String certificado = rs.getString(1);
+            String[] certificadoArray = certificado.split("\n");
+            for(String linha: certificadoArray) {
+                if (linha.equals("-----BEGIN CERTIFICATE-----")) {
+                     is64BasedCertificate = true;
+                     cert+=linha+"\n";
+                     continue;
+                }
+                if(is64BasedCertificate == true){
+                    cert+=linha+"\n";
+                    continue;
+                    //Based64Certificate.add(linha);
+                }
+            }
+            CertificateFactory cf = CertificateFactory.getInstance("X.509");
+            byte[] b = Based64Certificate.toString().getBytes();
+            ByteArrayInputStream bytes = new ByteArrayInputStream(cert.getBytes());
+            X509Certificate certificate = (X509Certificate)cf.generateCertificate(bytes);
+            return certificate.getPublicKey();
+        }
+        return null;
+    }
+
 }
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,6 +1,8 @@
 package UI;
 import java.io.*;
-import java.security.NoSuchAlgorithmException;
+import java.security.*;
+import java.security.cert.CertificateException;
+import java.security.spec.InvalidKeySpecException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.awt.*;
@@ -9,6 +11,9 @@ import java.awt.event.ActionListener;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Random;
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 import javax.swing.JFileChooser;
 import javax.swing.filechooser.FileSystemView;
 
@@ -26,7 +31,7 @@ public class Container extends JPanel implements Observer {
     private String passwordText = "";
     private ArrayList<Object> passwordWithNumbersArray = new ArrayList<Object>();
     private String Login;
-
+    private JFileChooser fileChooser = new JFileChooser();
 
     public Container(MainFrame mainFrame) throws SQLException, ClassNotFoundException {
         AuthController.getInstance();
@@ -114,7 +119,6 @@ public class Container extends JPanel implements Observer {
         btnArq.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                JFileChooser fileChooser = new JFileChooser();
                 fileChooser.showOpenDialog(null);
                 File f = fileChooser.getSelectedFile();
                 String filename = f.getAbsolutePath();
@@ -126,6 +130,56 @@ public class Container extends JPanel implements Observer {
         JTextField secretPhraseArea = new JTextField();
         secretPhraseArea.setPreferredSize(new Dimension(150, 30));
         menu.add(secretPhraseArea);
+
+        JButton btnConfirm = new JButton("Entrar");
+        btnConfirm.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                try {
+                    PrivateKey userPrivateKey = AuthController.getBased64PrivateKey(secretPhraseArea.getText(), fileChooser.getSelectedFile());
+                    PublicKey userPublicKey = AuthController.getUserPublicKeyFromCertificate(Login);
+
+                    byte[] b = new byte[2048];
+                    new SecureRandom().nextBytes(b);
+
+                    Signature sig = Signature.getInstance("SHA1WithRSA");
+                    sig.initSign(userPrivateKey);
+                    sig.update(b);
+                    byte[] signature = sig.sign();
+
+                    sig.initVerify(userPublicKey);
+                    sig.update(b);
+                    try {
+                        if (sig.verify(signature)) {
+                            System.out.println( "Signature verified" );
+                        } else System.out.println( "Signature failed" );
+                    } catch (SignatureException se) {
+                        System.out.println( "Singature failed" );
+                    }
+                } catch (NoSuchAlgorithmException | NoSuchProviderException noSuchAlgorithmException) {
+                    noSuchAlgorithmException.printStackTrace();
+                } catch (IOException ioException) {
+                    ioException.printStackTrace();
+                } catch (InvalidKeyException invalidKeyException) {
+                    invalidKeyException.printStackTrace();
+                } catch (NoSuchPaddingException noSuchPaddingException) {
+                    noSuchPaddingException.printStackTrace();
+                } catch (BadPaddingException badPaddingException) {
+                    badPaddingException.printStackTrace();
+                } catch (IllegalBlockSizeException illegalBlockSizeException) {
+                    illegalBlockSizeException.printStackTrace();
+                } catch (InvalidKeySpecException invalidKeySpecException) {
+                    invalidKeySpecException.printStackTrace();
+                } catch (CertificateException certificateException) {
+                    certificateException.printStackTrace();
+                } catch (SQLException throwables) {
+                    throwables.printStackTrace();
+                } catch (SignatureException signatureException) {
+                    signatureException.printStackTrace();
+                }
+            }
+        });
+        menu.add(btnConfirm);
         this.add(menu);
     }
 
