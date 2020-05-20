@@ -39,7 +39,7 @@ public class AuthController {
             ResultSet rs = null;
             DbSingletonController.createConnection();
             DbSingletonController.createStatement();
-            rs = DbSingletonController.executeQuery(String.format("select * from Usuario where email = '%s'", email));
+            rs = DbSingletonController.executeQuery(String.format("select * from Usuario where LoginNome = '%s'", email));
             if (rs != null && rs.next()) {
                 String login = rs.getString(3);
                 if (email.equalsIgnoreCase(login)) {
@@ -58,7 +58,7 @@ public class AuthController {
         ResultSet rs = null;
         DbSingletonController.createConnection();
         DbSingletonController.createStatement();
-        rs = DbSingletonController.executeQuery(String.format("select hashedPassword ,salt from Usuario where email='%s'", login));
+        rs = DbSingletonController.executeQuery(String.format("select hashedPassword ,salt from Usuario where LoginNome='%s'", login));
         if (rs != null && rs.next()) {
             String dbhashedPassword = rs.getString(1);
             int dbSalt = rs.getInt(2);
@@ -194,7 +194,7 @@ public class AuthController {
         ResultSet rs = null;
         DbSingletonController.createConnection();
         DbSingletonController.createStatement();
-        rs = DbSingletonController.executeQuery(String.format("select certificado from Usuario where email='%s'", login));
+        rs = DbSingletonController.executeQuery(String.format("select certificado from Usuario where LoginNome='%s'", login));
         if (rs != null && rs.next()) {
             String certificado = rs.getString(1);
             String[] certificadoArray = certificado.split("\n");

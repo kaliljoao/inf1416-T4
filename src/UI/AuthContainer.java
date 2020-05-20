@@ -22,7 +22,7 @@ import sun.rmi.runtime.Log;
 
 import javax.swing.*;
 
-public class Container extends JPanel implements Observer {
+public class AuthContainer extends JPanel implements Observer {
 
     private String player1, player2;
     private MainFrame Frame;
@@ -33,7 +33,7 @@ public class Container extends JPanel implements Observer {
     private String Login;
     private JFileChooser fileChooser = new JFileChooser();
 
-    public Container(MainFrame mainFrame) throws SQLException, ClassNotFoundException {
+    public AuthContainer(MainFrame mainFrame) throws SQLException, ClassNotFoundException {
         AuthController.getInstance();
         this.setAlignmentX(JComponent.CENTER_ALIGNMENT);
         Frame = mainFrame;
@@ -151,10 +151,12 @@ public class Container extends JPanel implements Observer {
                     sig.update(b);
                     try {
                         if (sig.verify(signature)) {
-                            System.out.println( "Signature verified" );
+                            changeToAuthSystem();
                         } else System.out.println( "Signature failed" );
                     } catch (SignatureException se) {
                         System.out.println( "Singature failed" );
+                    } catch (ClassNotFoundException classNotFoundException) {
+                        classNotFoundException.printStackTrace();
                     }
                 } catch (NoSuchAlgorithmException | NoSuchProviderException noSuchAlgorithmException) {
                     noSuchAlgorithmException.printStackTrace();
@@ -183,6 +185,26 @@ public class Container extends JPanel implements Observer {
         this.add(menu);
     }
 
+    private void changeToAuthSystem() throws SQLException, ClassNotFoundException {
+        Clear();
+
+
+        Toolkit tk = Toolkit.getDefaultToolkit();
+        Dimension screenSize = tk.getScreenSize();
+        int sl = screenSize.width;
+        int sa = screenSize.height;
+        int x = sl / 2 - 500 / 2;
+        int y = sa / 2 - 280 / 2;
+
+        JFrame systemFrame = new JFrame();
+        systemFrame.setBounds(x, y, 500, 280);
+
+        CloseItself();
+
+        SystemContainer systemContainer = new SystemContainer(this.Frame, this.Login);
+        systemFrame.add(systemContainer, BorderLayout.CENTER);
+        systemFrame.setVisible(true);
+    }
 
     private void changePasswordButtons(JPanel menu, JPasswordField pfPassword) {
         ArrayList<Integer> usedNumbers = new ArrayList<Integer>();
