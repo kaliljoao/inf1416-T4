@@ -35,6 +35,10 @@ public class DbSingletonController {
         return rs;
     }
 
+    public static int executeUpdate(String query) throws SQLException {
+        return stmt.executeUpdate(query);
+    }
+
     public static PreparedStatement setPreparedStatement (String query) throws SQLException {
         return connection.prepareStatement(query);
     }

@@ -187,8 +187,6 @@ public class AuthContainer extends JPanel implements Observer {
 
     private void changeToAuthSystem() throws SQLException, ClassNotFoundException {
         Clear();
-
-
         Toolkit tk = Toolkit.getDefaultToolkit();
         Dimension screenSize = tk.getScreenSize();
         int sl = screenSize.width;
@@ -201,7 +199,7 @@ public class AuthContainer extends JPanel implements Observer {
 
         CloseItself();
 
-        SystemContainer systemContainer = new SystemContainer(this.Frame, this.Login);
+        SystemContainer systemContainer = new SystemContainer(systemFrame, this.Login);
         systemFrame.add(systemContainer, BorderLayout.CENTER);
         systemFrame.setVisible(true);
     }

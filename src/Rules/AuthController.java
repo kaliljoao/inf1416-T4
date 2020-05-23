@@ -125,7 +125,7 @@ public class AuthController {
     }
 
 
-    private static String getPasswordHash(String password, Integer salt) throws NoSuchAlgorithmException, UnsupportedEncodingException {
+    public static String getPasswordHash(String password, Integer salt) throws NoSuchAlgorithmException, UnsupportedEncodingException {
         password = password + String.format("%09d", salt);
         try {
             MessageDigest md5 = MessageDigest.getInstance("MD5");
@@ -183,13 +183,9 @@ public class AuthController {
         FileReader reader = new FileReader("Keys/user01-x509.crt");
         statement.setCharacterStream(1, reader);
         statement.execute();
-
     }
 
     public static PublicKey getUserPublicKeyFromCertificate (String login) throws SQLException, CertificateException {
-        ArrayList<String> Based64Certificate = new ArrayList<String>();
-        String cert = "";
-
         boolean is64BasedCertificate = false;
         ResultSet rs = null;
         DbSingletonController.createConnection();
@@ -197,22 +193,8 @@ public class AuthController {
         rs = DbSingletonController.executeQuery(String.format("select certificado from Usuario where LoginNome='%s'", login));
         if (rs != null && rs.next()) {
             String certificado = rs.getString(1);
-            String[] certificadoArray = certificado.split("\n");
-            for(String linha: certificadoArray) {
-                if (linha.equals("-----BEGIN CERTIFICATE-----")) {
-                     is64BasedCertificate = true;
-                     cert+=linha+"\n";
-                     continue;
-                }
-                if(is64BasedCertificate == true){
-                    cert+=linha+"\n";
-                    continue;
-                    //Based64Certificate.add(linha);
-                }
-            }
             CertificateFactory cf = CertificateFactory.getInstance("X.509");
-            byte[] b = Based64Certificate.toString().getBytes();
-            ByteArrayInputStream bytes = new ByteArrayInputStream(cert.getBytes());
+            ByteArrayInputStream bytes = new ByteArrayInputStream(certificado.getBytes());
             X509Certificate certificate = (X509Certificate)cf.generateCertificate(bytes);
             return certificate.getPublicKey();
         }
