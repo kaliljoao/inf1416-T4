@@ -3,13 +3,19 @@ package UI;
 import Models.Grupo;
 import Models.UserModel;
 import Rules.*;
+import sun.jvm.hotspot.ui.ObjectHistogramPanel;
 
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.*;
+import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.security.SignatureException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -26,7 +32,7 @@ public class SystemContainer extends JPanel implements Observer {
     private CtrlRules Ctrl;
     private JFileChooser fileChooser = new JFileChooser();
 
-    public SystemContainer(JFrame frame, String login) throws SQLException, ClassNotFoundException {
+    public SystemContainer(JFrame frame, UserModel model) throws SQLException, ClassNotFoundException {
         AuthController.getInstance();
         Ctrl = CtrlRules.getCtrlRules();
         Ctrl.addObserver(this);
@@ -34,23 +40,8 @@ public class SystemContainer extends JPanel implements Observer {
         this.setAlignmentX(JComponent.CENTER_ALIGNMENT);
 
 
-        UserModel model = new UserModel();
-        ResultSet rs = null;
         DbSingletonController.createConnection();
         DbSingletonController.createStatement();
-        rs = DbSingletonController.executeQuery(String.format("select * from Usuario where LoginNome = '%s'", login));
-        if (rs != null && rs.next()) {
-            model.setLogin_Nome(login);
-            model.setNome(rs.getString(2));
-            int x = rs.getInt(8);
-            model.setGrupo(Grupo.fromInteger(x));
-            model.setQtd_Acessos(rs.getInt(9)+1);
-        }
-        DbSingletonController.closeConnection();
-
-        DbSingletonController.createConnection();
-        DbSingletonController.createStatement();
-
         String query = "Update Usuario" +
                 " set Acessos = "+ String.valueOf(model.getQtd_Acessos()) +
                 " where LoginNome='"+ model.getLoginNome() +"'; ";
@@ -92,8 +83,14 @@ public class SystemContainer extends JPanel implements Observer {
         });
         buttonsPanel.add(btnAlterPassword);
 
-
-        buttonsPanel.add(new JButton("Consultar pasta de arquivos secretos do usuário"));
+        JButton btnConsultarArquivos = new JButton("Consultar pasta de arquivos secretos do usuário");
+        btnConsultarArquivos.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                changeToFilesConsulterScreen(model);
+            }
+        });
+        buttonsPanel.add(btnConsultarArquivos);
 
         JButton btnExit = new JButton("Sair do sistema");
         btnExit.addActionListener(new ActionListener() {
@@ -117,7 +114,104 @@ public class SystemContainer extends JPanel implements Observer {
         this.repaint();
     }
 
-    public void changeToFormScreen( UserModel model ) {
+    private void changeToFilesConsulterScreen(UserModel model) {
+        JFileChooser fodlerChooser = new JFileChooser();
+        fodlerChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+        JPanel menu = new JPanel();
+        menu.setPreferredSize(new Dimension(450, 280));
+
+        JLabel loginLabel = new JLabel("Login: "+model.getLoginNome() + " | ");
+        JLabel grupoLabel = new JLabel("Grupo: "+model.getGrupo().toString()+ " | ");
+        JLabel nomeLabel = new JLabel("Nome: "+model.getNome() + " | ");
+        JLabel consultasLabel = new JLabel("Consultas: "+ Integer.toString(1)); // mudar para consultas vindas do banco
+
+        GridLayout experimentLayout = new GridLayout(0,2);
+        JPanel buttonsPanel = new JPanel();
+        buttonsPanel.setLayout(experimentLayout);
+
+        buttonsPanel.add(new JLabel("Selecione a pasta dos arquivos:"));
+
+        JButton btnProcurarPasta = new JButton("Buscar");
+        btnProcurarPasta.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                fodlerChooser.showOpenDialog(null);
+            }
+        });
+        buttonsPanel.add(btnProcurarPasta);
+
+        String[] colunas = {"Nome Arq.", "Dono", "Grupo"};
+        final JTable[] tabela = {new JTable(new String[][]{}, colunas)};
+
+        JButton btnListarArquivos = new JButton("Listar arquivos");
+        btnListarArquivos.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                File[] filesInDirectory = fodlerChooser.getSelectedFile().listFiles();
+                ArrayList<File> indexFiles = new ArrayList<File>();
+                for(File file : filesInDirectory) {
+                    if(file.getName().contains("index")){
+                        indexFiles.add(file);
+                    }
+                }
+                try {
+                    String[] listFiles = AuthController.decryptIndexFile(model, indexFiles);
+
+                    String[][] rows = new String[listFiles.length][3] ;
+                    for(int i = 0; i < listFiles.length; i++) {
+                        String[] linha = listFiles[i].split(" ");
+                        rows[i] = Arrays.copyOfRange(linha, 1, linha.length+1);
+                    }
+                    tabela[0] = new JTable(rows, colunas);
+                    tabela[0].updateUI();
+                    tabela[0].repaint();
+                } catch (NoSuchPaddingException noSuchPaddingException) {
+                    noSuchPaddingException.printStackTrace();
+                } catch (NoSuchAlgorithmException noSuchAlgorithmException) {
+                    noSuchAlgorithmException.printStackTrace();
+                } catch (InvalidKeyException invalidKeyException) {
+                    invalidKeyException.printStackTrace();
+                } catch (IOException ioException) {
+                    ioException.printStackTrace();
+                } catch (BadPaddingException badPaddingException) {
+                    badPaddingException.printStackTrace();
+                } catch (IllegalBlockSizeException illegalBlockSizeException) {
+                    illegalBlockSizeException.printStackTrace();
+                } catch (SignatureException signatureException) {
+                    signatureException.printStackTrace();
+                }
+            }
+        });
+        buttonsPanel.add(btnListarArquivos);
+        buttonsPanel.add(new JLabel(""));
+
+
+        buttonsPanel.add(tabela[0]);
+
+        JButton btnCancelar = new JButton("Cancelar");
+        btnCancelar.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                Clear();
+                builSystemUI(model);
+            }
+        });
+
+        menu.add(loginLabel, BorderLayout.PAGE_START);
+        menu.add(grupoLabel, BorderLayout.PAGE_START);
+        menu.add(nomeLabel, BorderLayout.PAGE_START);
+        menu.add(consultasLabel, BorderLayout.PAGE_START);
+        menu.add(buttonsPanel, BorderLayout.CENTER);
+
+        menu.add(btnCancelar, BorderLayout.SOUTH);
+
+        this.Clear();
+        this.add(menu);
+        this.updateUI();
+        this.repaint();
+    }
+
+    private void changeToFormScreen( UserModel model ) {
         fileChooser = new JFileChooser();
         final File[] f = new File[1];
         JPanel menu = new JPanel();
@@ -189,24 +283,7 @@ public class SystemContainer extends JPanel implements Observer {
                         String cert = "";
 
                         f[0] = fileChooser.getSelectedFile();
-                        BufferedReader br = new BufferedReader(new FileReader(f[0]));
-                        String st;
-                        while ((st = br.readLine()) != null) {
-                            if (st.equals("-----BEGIN CERTIFICATE-----")) {
-                                is64BasedCertificate = true;
-                                cert += st + "\n";
-                                continue;
-                            }
-                            if (is64BasedCertificate == true) {
-                                cert += st + "\n";
-                                continue;
-                            }
-                        }
-                        CertificateFactory cf = CertificateFactory.getInstance("X.509");
-                        ByteArrayInputStream bytes = new ByteArrayInputStream(cert.getBytes());
-                        X509Certificate certificate = (X509Certificate) cf.generateCertificate(bytes);
-
-                        String LoginNome = certificate.getSubjectDN().getName().split(",")[0].split("=")[1];
+                        String LoginNome = extractLoginNomeFromCertificate(f[0]);
                         String Nome = LoginNome.split("@")[0];
 
                         DbSingletonController.createConnection();
@@ -245,8 +322,32 @@ public class SystemContainer extends JPanel implements Observer {
         this.repaint();
     }
 
-    public void changeToAlterPasswordScreen( UserModel model ) {
+    private String extractLoginNomeFromCertificate (File f) throws IOException, CertificateException {
+        boolean is64BasedCertificate = false;
+        String cert = "";
+        BufferedReader br = new BufferedReader(new FileReader(f));
+        String st;
+        while ((st = br.readLine()) != null) {
+            if (st.equals("-----BEGIN CERTIFICATE-----")) {
+                is64BasedCertificate = true;
+                cert += st + "\n";
+                continue;
+            }
+            if (is64BasedCertificate == true) {
+                cert += st + "\n";
+                continue;
+            }
+        }
+        CertificateFactory cf = CertificateFactory.getInstance("X.509");
+        ByteArrayInputStream bytes = new ByteArrayInputStream(cert.getBytes());
+        X509Certificate certificate = (X509Certificate) cf.generateCertificate(bytes);
+
+        return certificate.getSubjectDN().getName().split(",")[0].split("=")[1];
+    }
+
+    private void changeToAlterPasswordScreen( UserModel model ) {
         JPanel menu = new JPanel();
+        final File[] f = new File[1];
         menu.setPreferredSize(new Dimension(450, 280));
 
         JLabel loginLabel = new JLabel("Login: "+model.getLoginNome() + " | ");
@@ -264,8 +365,8 @@ public class SystemContainer extends JPanel implements Observer {
             @Override
             public void actionPerformed(ActionEvent e) {
                 fileChooser.showOpenDialog(null);
-                File f = fileChooser.getSelectedFile();
-                String filename = f.getAbsolutePath();
+                f[0] = fileChooser.getSelectedFile();
+                String filename = f[0].getAbsolutePath();
             }
         });
         buttonsPanel.add(btnBuscaCertificado);
@@ -301,10 +402,12 @@ public class SystemContainer extends JPanel implements Observer {
                         DbSingletonController.createConnection();
                         DbSingletonController.createStatement();
 
+                        String LoginNome = extractLoginNomeFromCertificate(f[0]);
+
                         String query = "Update Usuario" +
                                 " set hashedPassword = '"+ newHash +"'," +
                                 " salt = '"+ String.valueOf(salt) +"'" +
-                                " where LoginNome='"+ model.getLoginNome() +"'; ";
+                                " where LoginNome='"+ LoginNome  +"'; ";
 
                         int rowAffected = DbSingletonController.executeUpdate(query);
                         DbSingletonController.closeConnection();
@@ -321,6 +424,10 @@ public class SystemContainer extends JPanel implements Observer {
                         unsupportedEncodingException.printStackTrace();
                     }  catch (SQLException throwables) {
                         throwables.printStackTrace();
+                    } catch (CertificateException certificateException) {
+                        certificateException.printStackTrace();
+                    } catch (IOException ioException) {
+                        ioException.printStackTrace();
                     }
                 }
             }

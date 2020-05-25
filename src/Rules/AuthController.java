@@ -1,5 +1,7 @@
 package Rules;
 
+import Models.UserModel;
+
 import javax.crypto.*;
 import java.io.*;
 import java.nio.file.Files;
@@ -199,6 +201,62 @@ public class AuthController {
             return certificate.getPublicKey();
         }
         return null;
+    }
+
+    public static String[] decryptIndexFile(UserModel model, ArrayList<File> indexFiles) throws NoSuchPaddingException,
+            NoSuchAlgorithmException, InvalidKeyException,
+            IOException, BadPaddingException,
+            IllegalBlockSizeException, SignatureException {
+        File envFile = null;
+        File encFile = null;
+        File asdFile = null;
+
+        for(File f: indexFiles) {
+            if (f.getName().contains("enc")){
+                encFile = f;
+            }
+            else if(f.getName().contains("env")) {
+                envFile = f;
+            }
+            else {
+                asdFile = f;
+            }
+        }
+
+        // decriptação do arquivo index.env
+        Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
+        cipher.init(Cipher.DECRYPT_MODE, model.getPrivateKey());
+
+        Path envPath = Paths.get(envFile.getPath());
+        byte[] newEnvPlainText = cipher.doFinal(Files.readAllBytes(envPath));
+        String seedGenerated = new String(newEnvPlainText, "UTF8");
+
+
+        // geração do PRNG
+        SecureRandom pnrg = SecureRandom.getInstance("SHA1PRNG");
+        pnrg.setSeed(seedGenerated.getBytes());
+
+        // geração da K_DES para decriptar o arquivo index.enc
+        KeyGenerator keyGen = KeyGenerator.getInstance("DES");
+        keyGen.init(pnrg);
+        Key key = keyGen.generateKey();
+
+        // decriptação do arquivo .enc
+        cipher = Cipher.getInstance("DES/ECB/PKCS5Padding");
+        cipher.init(Cipher.DECRYPT_MODE, key);
+        byte[] newEncPlainTextBytes = cipher.doFinal(Files.readAllBytes(Paths.get(encFile.getPath())));
+        String encPlainText = new String(newEncPlainTextBytes, "UTF8");
+
+        // Verificação da assinatura digital
+        Signature sig = Signature.getInstance("SHA1WithRSA");
+        byte[] asdFileByteArray = Files.readAllBytes(Paths.get(asdFile.getPath()));
+        sig.initVerify(model.getPublicKey());
+//        if (sig.verify(asdFileByteArray))
+//            return encPlainText.split("\n");
+//        else{
+//            return null;
+//        }
+        return encPlainText.split("\n");
     }
 
 }

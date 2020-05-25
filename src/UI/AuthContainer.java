@@ -8,6 +8,7 @@ import java.sql.DriverManager;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Random;
@@ -17,6 +18,8 @@ import javax.crypto.NoSuchPaddingException;
 import javax.swing.JFileChooser;
 import javax.swing.filechooser.FileSystemView;
 
+import Models.Grupo;
+import Models.UserModel;
 import Rules.*;
 import sun.rmi.runtime.Log;
 
@@ -151,7 +154,7 @@ public class AuthContainer extends JPanel implements Observer {
                     sig.update(b);
                     try {
                         if (sig.verify(signature)) {
-                            changeToAuthSystem();
+                            changeToAuthSystem(userPrivateKey, userPublicKey);
                         } else System.out.println( "Signature failed" );
                     } catch (SignatureException se) {
                         System.out.println( "Singature failed" );
@@ -185,7 +188,7 @@ public class AuthContainer extends JPanel implements Observer {
         this.add(menu);
     }
 
-    private void changeToAuthSystem() throws SQLException, ClassNotFoundException {
+    private void changeToAuthSystem(PrivateKey userPrivateKey, PublicKey userPublicKey) throws SQLException, ClassNotFoundException {
         Clear();
         Toolkit tk = Toolkit.getDefaultToolkit();
         Dimension screenSize = tk.getScreenSize();
@@ -199,7 +202,23 @@ public class AuthContainer extends JPanel implements Observer {
 
         CloseItself();
 
-        SystemContainer systemContainer = new SystemContainer(systemFrame, this.Login);
+        UserModel model = new UserModel();
+        ResultSet rs = null;
+        DbSingletonController.createConnection();
+        DbSingletonController.createStatement();
+        rs = DbSingletonController.executeQuery(String.format("select * from Usuario where LoginNome = '%s'", this.Login));
+        if (rs != null && rs.next()) {
+            model.setLogin_Nome(this.Login);
+            model.setNome(rs.getString(2));
+            int userGrupo = rs.getInt(8);
+            model.setGrupo(Grupo.fromInteger(userGrupo));
+            model.setQtd_Acessos(rs.getInt(9)+1);
+            model.setPrivateKey(userPrivateKey);
+            model.setPublicKey(userPublicKey);
+        }
+        DbSingletonController.closeConnection();
+
+        SystemContainer systemContainer = new SystemContainer(systemFrame, model);
         systemFrame.add(systemContainer, BorderLayout.CENTER);
         systemFrame.setVisible(true);
     }
