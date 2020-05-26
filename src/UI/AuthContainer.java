@@ -194,11 +194,11 @@ public class AuthContainer extends JPanel implements Observer {
         Dimension screenSize = tk.getScreenSize();
         int sl = screenSize.width;
         int sa = screenSize.height;
-        int x = sl / 2 - 500 / 2;
-        int y = sa / 2 - 280 / 2;
+        int x = sl / 2 - 550 / 2;
+        int y = sa / 2 - 250 / 2;
 
         JFrame systemFrame = new JFrame();
-        systemFrame.setBounds(x, y, 500, 280);
+        systemFrame.setBounds(x, y, 550, 280);
 
         CloseItself();
 

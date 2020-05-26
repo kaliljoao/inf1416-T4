@@ -203,7 +203,7 @@ public class AuthController {
         return null;
     }
 
-    public static String[] decryptIndexFile(UserModel model, ArrayList<File> indexFiles) throws NoSuchPaddingException,
+    public static Object decryptFile(UserModel model, ArrayList<File> indexFiles) throws NoSuchPaddingException,
             NoSuchAlgorithmException, InvalidKeyException,
             IOException, BadPaddingException,
             IllegalBlockSizeException, SignatureException {
@@ -223,7 +223,7 @@ public class AuthController {
             }
         }
 
-        // decriptação do arquivo index.env
+        // decriptação do arquivo .env
         Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
         cipher.init(Cipher.DECRYPT_MODE, model.getPrivateKey());
 
@@ -236,7 +236,7 @@ public class AuthController {
         SecureRandom pnrg = SecureRandom.getInstance("SHA1PRNG");
         pnrg.setSeed(seedGenerated.getBytes());
 
-        // geração da K_DES para decriptar o arquivo index.enc
+        // geração da K_DES para decriptar o arquivo .enc
         KeyGenerator keyGen = KeyGenerator.getInstance("DES");
         keyGen.init(pnrg);
         Key key = keyGen.generateKey();
@@ -251,12 +251,16 @@ public class AuthController {
         Signature sig = Signature.getInstance("SHA1WithRSA");
         byte[] asdFileByteArray = Files.readAllBytes(Paths.get(asdFile.getPath()));
         sig.initVerify(model.getPublicKey());
-//        if (sig.verify(asdFileByteArray))
-//            return encPlainText.split("\n");
-//        else{
-//            return null;
-//        }
-        return encPlainText.split("\n");
+        sig.update(newEncPlainTextBytes);
+        if (sig.verify(asdFileByteArray))
+            if(envFile.getName().contains("index"))
+                return encPlainText.split("\n");
+            else{
+                return encPlainText;
+            }
+        else{
+            return null;
+        }
     }
 
 }

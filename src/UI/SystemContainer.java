@@ -118,18 +118,20 @@ public class SystemContainer extends JPanel implements Observer {
         JFileChooser fodlerChooser = new JFileChooser();
         fodlerChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
         JPanel menu = new JPanel();
-        menu.setPreferredSize(new Dimension(450, 280));
+        menu.setPreferredSize(new Dimension(550, 280));
 
         JLabel loginLabel = new JLabel("Login: "+model.getLoginNome() + " | ");
         JLabel grupoLabel = new JLabel("Grupo: "+model.getGrupo().toString()+ " | ");
         JLabel nomeLabel = new JLabel("Nome: "+model.getNome() + " | ");
         JLabel consultasLabel = new JLabel("Consultas: "+ Integer.toString(1)); // mudar para consultas vindas do banco
 
-        GridLayout experimentLayout = new GridLayout(0,2);
+        GridLayout experimentLayout = new GridLayout(0,1);
         JPanel buttonsPanel = new JPanel();
         buttonsPanel.setLayout(experimentLayout);
 
-        buttonsPanel.add(new JLabel("Selecione a pasta dos arquivos:"));
+        JPanel selectFolderPanel = new JPanel();
+        selectFolderPanel.setLayout(new GridLayout(0,1));
+        selectFolderPanel.add(new JLabel("Selecione a pasta dos arquivos:"));
 
         JButton btnProcurarPasta = new JButton("Buscar");
         btnProcurarPasta.addActionListener(new ActionListener() {
@@ -138,10 +140,8 @@ public class SystemContainer extends JPanel implements Observer {
                 fodlerChooser.showOpenDialog(null);
             }
         });
-        buttonsPanel.add(btnProcurarPasta);
+        selectFolderPanel.add(btnProcurarPasta);
 
-        String[] colunas = {"Nome Arq.", "Dono", "Grupo"};
-        final JTable[] tabela = {new JTable(new String[][]{}, colunas)};
 
         JButton btnListarArquivos = new JButton("Listar arquivos");
         btnListarArquivos.addActionListener(new ActionListener() {
@@ -155,16 +155,53 @@ public class SystemContainer extends JPanel implements Observer {
                     }
                 }
                 try {
-                    String[] listFiles = AuthController.decryptIndexFile(model, indexFiles);
+                    String[] listFiles = (String[])AuthController.decryptFile(model, indexFiles);
 
-                    String[][] rows = new String[listFiles.length][3] ;
                     for(int i = 0; i < listFiles.length; i++) {
-                        String[] linha = listFiles[i].split(" ");
-                        rows[i] = Arrays.copyOfRange(linha, 1, linha.length+1);
+                        JLabel lblArq = new JLabel(listFiles[i]);
+                        JButton btnArq = new JButton("Salvar");
+                        btnArq.setPreferredSize(new Dimension(50,20));
+                        int finalI = i;
+                        ArrayList<File> arqFiles = new ArrayList<File>();
+                        btnArq.addActionListener(new ActionListener() {
+                            @Override
+                            public void actionPerformed(ActionEvent e) {
+                                for(File file : filesInDirectory) {
+                                    if(file.getName().contains(listFiles[finalI].split(" ")[0])){
+                                        arqFiles.add(file);
+                                    }
+                                }
+                                try {
+                                    String retDecriptedFile = (String)AuthController.decryptFile(model, arqFiles);
+                                    if(retDecriptedFile != null) {
+                                        FileWriter writer = new FileWriter(listFiles[finalI].split(" ")[0]+".docx");
+                                        BufferedWriter output = new BufferedWriter(writer);
+                                        output.write(retDecriptedFile);
+                                        output.close();
+                                    }
+
+                                } catch (NoSuchPaddingException noSuchPaddingException) {
+                                    noSuchPaddingException.printStackTrace();
+                                } catch (NoSuchAlgorithmException noSuchAlgorithmException) {
+                                    noSuchAlgorithmException.printStackTrace();
+                                } catch (InvalidKeyException invalidKeyException) {
+                                    invalidKeyException.printStackTrace();
+                                } catch (IOException ioException) {
+                                    ioException.printStackTrace();
+                                } catch (BadPaddingException badPaddingException) {
+                                    badPaddingException.printStackTrace();
+                                } catch (IllegalBlockSizeException illegalBlockSizeException) {
+                                    illegalBlockSizeException.printStackTrace();
+                                } catch (SignatureException signatureException) {
+                                    signatureException.printStackTrace();
+                                }
+                            }
+                        });
+                        buttonsPanel.add(lblArq);
+                        buttonsPanel.add(btnArq);
                     }
-                    tabela[0] = new JTable(rows, colunas);
-                    tabela[0].updateUI();
-                    tabela[0].repaint();
+                    updateUI();
+                    repaint();
                 } catch (NoSuchPaddingException noSuchPaddingException) {
                     noSuchPaddingException.printStackTrace();
                 } catch (NoSuchAlgorithmException noSuchAlgorithmException) {
@@ -183,12 +220,9 @@ public class SystemContainer extends JPanel implements Observer {
             }
         });
         buttonsPanel.add(btnListarArquivos);
-        buttonsPanel.add(new JLabel(""));
-
-
-        buttonsPanel.add(tabela[0]);
 
         JButton btnCancelar = new JButton("Cancelar");
+        btnCancelar.setPreferredSize(new Dimension(450, 25));
         btnCancelar.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -201,6 +235,7 @@ public class SystemContainer extends JPanel implements Observer {
         menu.add(grupoLabel, BorderLayout.PAGE_START);
         menu.add(nomeLabel, BorderLayout.PAGE_START);
         menu.add(consultasLabel, BorderLayout.PAGE_START);
+        menu.add(selectFolderPanel, BorderLayout.CENTER);
         menu.add(buttonsPanel, BorderLayout.CENTER);
 
         menu.add(btnCancelar, BorderLayout.SOUTH);
