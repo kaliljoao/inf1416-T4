@@ -62,6 +62,9 @@ public class AuthContainer extends JPanel implements Observer {
                     Login = loginArea.getText();
                     changeToPasswordScreen();
                 }
+                else{
+                    JOptionPane.showMessageDialog(null, "Login incorreto!");
+                }
             }
         });
         this.add(menu);
@@ -97,6 +100,12 @@ public class AuthContainer extends JPanel implements Observer {
                     if (AuthController.validatePassword(Login, passwordWithNumbersArray)) {
                         changeToFileAuthenticationScreen();
                     }
+                    else{
+                        JOptionPane.showMessageDialog(null, "Senha incorreta!","ERRO", JOptionPane.OK_OPTION);
+                        passwordText = "";
+                        pfPassword.setText(passwordText);
+                        passwordWithNumbersArray.clear();
+                    }
                 } catch (SQLException ex) {
                     ex.printStackTrace();
                 } catch (UnsupportedEncodingException ex) {
@@ -104,7 +113,6 @@ public class AuthContainer extends JPanel implements Observer {
                 } catch (NoSuchAlgorithmException ex) {
                     ex.printStackTrace();
                 }
-                changeToFileAuthenticationScreen();
             }
         });
         this.add(menu);
@@ -155,7 +163,9 @@ public class AuthContainer extends JPanel implements Observer {
                     try {
                         if (sig.verify(signature)) {
                             changeToAuthSystem(userPrivateKey, userPublicKey);
-                        } else System.out.println( "Signature failed" );
+                        } else{
+                            JOptionPane.showMessageDialog(null, "Frase secreta ou chave privada incorreta!","ERRO", JOptionPane.OK_OPTION);
+                        }
                     } catch (SignatureException se) {
                         System.out.println( "Singature failed" );
                     } catch (ClassNotFoundException classNotFoundException) {
@@ -170,7 +180,7 @@ public class AuthContainer extends JPanel implements Observer {
                 } catch (NoSuchPaddingException noSuchPaddingException) {
                     noSuchPaddingException.printStackTrace();
                 } catch (BadPaddingException badPaddingException) {
-                    badPaddingException.printStackTrace();
+                    JOptionPane.showMessageDialog(null, "Frase secreta ou chave privada incorreta!","ERRO", JOptionPane.OK_OPTION);
                 } catch (IllegalBlockSizeException illegalBlockSizeException) {
                     illegalBlockSizeException.printStackTrace();
                 } catch (InvalidKeySpecException invalidKeySpecException) {

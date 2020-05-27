@@ -72,7 +72,10 @@ public class SystemContainer extends JPanel implements Observer {
                 changeToFormScreen(model);
             }
         });
-        buttonsPanel.add(btnCadastro);
+
+        if(model.getGrupo() == Grupo.Admin) {
+            buttonsPanel.add(btnCadastro);
+        }
 
         JButton btnAlterPassword = new JButton("Alterar senha pessoal e certificado digital do usuário");
         btnAlterPassword.addActionListener(new ActionListener() {
@@ -155,7 +158,7 @@ public class SystemContainer extends JPanel implements Observer {
                     }
                 }
                 try {
-                    String[] listFiles = (String[])AuthController.decryptFile(model, indexFiles);
+                    String[] listFiles = (String[])AuthController.decryptFile(model, indexFiles, true);
 
                     for(int i = 0; i < listFiles.length; i++) {
                         JLabel lblArq = new JLabel(listFiles[i]);
@@ -172,12 +175,17 @@ public class SystemContainer extends JPanel implements Observer {
                                     }
                                 }
                                 try {
-                                    String retDecriptedFile = (String)AuthController.decryptFile(model, arqFiles);
+                                    byte[] retDecriptedFile = (byte[])AuthController.decryptFile(model, arqFiles, false);
                                     if(retDecriptedFile != null) {
-                                        FileWriter writer = new FileWriter(listFiles[finalI].split(" ")[0]+".docx");
-                                        BufferedWriter output = new BufferedWriter(writer);
-                                        output.write(retDecriptedFile);
-                                        output.close();
+                                        File file = new File(listFiles[finalI].split(" ")[1]);
+                                        FileOutputStream fos = null;
+
+                                        fos = new FileOutputStream(file);
+                                        fos.write(retDecriptedFile);
+
+                                        if (fos != null) {
+                                            fos.close();
+                                        }
                                     }
 
                                 } catch (NoSuchPaddingException noSuchPaddingException) {
@@ -303,47 +311,69 @@ public class SystemContainer extends JPanel implements Observer {
             @Override
             public void actionPerformed(ActionEvent e) {
                 try {
+                    f[0] = fileChooser.getSelectedFile();
+                    X509Certificate certificate = generateCertificate(f[0]);
                     if (Arrays.equals(passwordField.getPassword(), passwordFieldConfirmation.getPassword())) {
-                        Random rand = new Random();
-                        int salt = rand.nextInt();
-                        if (salt < 0) {
-                            salt = salt * (-1);
-                        }
-                        String newHash = AuthController.getPasswordHash(passwordField.getPassword().toString(), salt);
-                        int grupoId = comboBox.getSelectedIndex() + 1;
-                        int acessos = 0;
-                        int isBlocked = 0;
-
-                        boolean is64BasedCertificate = false;
-                        String cert = "";
-
-                        f[0] = fileChooser.getSelectedFile();
-                        String LoginNome = extractLoginNomeFromCertificate(f[0]);
-                        String Nome = LoginNome.split("@")[0];
-
-                        DbSingletonController.createConnection();
-                        DbSingletonController.createStatement();
-
-                        String query = "INSERT INTO Usuario (Nome, LoginNome, hashedPassword, salt, isBlocked, certificado, GrupoId, Acessos) VALUES" +
-                                String.format("('%s','%s','%s','%s','%d','%s','%d','%d');",Nome, LoginNome, newHash, salt, 0, cert, grupoId, 0);
-
-                        int rowsAffected = DbSingletonController.executeUpdate(query);
-                        DbSingletonController.closeConnection();
-
-                        int result = JOptionPane.showConfirmDialog(null, "Usuário criado com sucesso!","Atenção",JOptionPane.OK_OPTION);
+                        String registerInformations = String.format(
+                                "Grupo: %s\n" +
+                                        "Versão Cert: %s\n" +
+                                        "Série Cert: %s\n" +
+                                        "Validade Cert: %s\n" +
+                                        "Tipo Assinatura Cert: %s\n" +
+                                        "Sujeito Cert: %s\n" +
+                                        "Emissor Cert: %s\n" +
+                                        "E-mail Cert: %s",
+                                Grupo.fromInteger(comboBox.getSelectedIndex() + 1),
+                                certificate.getVersion(),
+                                certificate.getSerialNumber(),
+                                certificate.getNotAfter(),
+                                certificate.getSigAlgName(),
+                                certificate.getSubjectX500Principal().getName(),
+                                certificate.getIssuerX500Principal().getName(),
+                                certificate.getSubjectX500Principal().getName()
+                                );
+                        int result = JOptionPane.showConfirmDialog(null, registerInformations, "Atenção", JOptionPane.OK_CANCEL_OPTION);
                         if (result == JOptionPane.OK_OPTION) {
-                            Clear();
-                            builSystemUI(model);
+                            String salt = AuthController.generateSalt();
+                            String newHash = AuthController.getPasswordHash(passwordField.getPassword().toString(), salt, true);
+                            if (newHash != "nok") {
+                                int grupoId = comboBox.getSelectedIndex() + 1;
+                                int acessos = 0;
+                                int isBlocked = 0;
+
+                                boolean is64BasedCertificate = false;
+                                String cert = "";
+
+
+                                String LoginNome = certificate.getSubjectDN().getName().split(",")[0].split("=")[1];
+                                String Nome = LoginNome.split("@")[0];
+
+                                DbSingletonController.createConnection();
+                                DbSingletonController.createStatement();
+
+                                String query = "INSERT INTO Usuario (Nome, LoginNome, hashedPassword, salt, isBlocked, certificado, GrupoId, Acessos) VALUES" +
+                                        String.format("('%s','%s','%s','%s','%d','%s','%d','%d');", Nome, LoginNome, newHash, salt, 0, cert, grupoId, 0);
+
+                                int rowsAffected = DbSingletonController.executeUpdate(query);
+                                DbSingletonController.closeConnection();
+
+                                int resultConfirm = JOptionPane.showConfirmDialog(null, "Usuário criado com sucesso!", "Atenção", JOptionPane.OK_OPTION);
+                                if (resultConfirm == JOptionPane.OK_OPTION) {
+                                    Clear();
+                                    builSystemUI(model);
+                                }
+                            }
+                            else{
+                                JOptionPane.showConfirmDialog(null, "Senha com números consecutivos!", "Senha inválida", JOptionPane.OK_OPTION);
+                            }
                         }
                     }
-                } catch (IOException ioException) {
-                    ioException.printStackTrace();
-                } catch (NoSuchAlgorithmException noSuchAlgorithmException) {
-                    noSuchAlgorithmException.printStackTrace();
-                } catch (SQLException throwables) {
-                    throwables.printStackTrace();
-                } catch (CertificateException certificateException) {
-                    certificateException.printStackTrace();
+                    } catch (CertificateException exception) {
+                    exception.printStackTrace();
+                } catch (IOException exception) {
+                    exception.printStackTrace();
+                } catch (SQLException sqlException) {
+                    sqlException.printStackTrace();
                 }
             }
         });
@@ -357,7 +387,7 @@ public class SystemContainer extends JPanel implements Observer {
         this.repaint();
     }
 
-    private String extractLoginNomeFromCertificate (File f) throws IOException, CertificateException {
+    private X509Certificate generateCertificate(File f) throws CertificateException, IOException {
         boolean is64BasedCertificate = false;
         String cert = "";
         BufferedReader br = new BufferedReader(new FileReader(f));
@@ -375,9 +405,7 @@ public class SystemContainer extends JPanel implements Observer {
         }
         CertificateFactory cf = CertificateFactory.getInstance("X.509");
         ByteArrayInputStream bytes = new ByteArrayInputStream(cert.getBytes());
-        X509Certificate certificate = (X509Certificate) cf.generateCertificate(bytes);
-
-        return certificate.getSubjectDN().getName().split(",")[0].split("=")[1];
+        return  (X509Certificate) cf.generateCertificate(bytes);
     }
 
     private void changeToAlterPasswordScreen( UserModel model ) {
@@ -427,34 +455,32 @@ public class SystemContainer extends JPanel implements Observer {
             @Override
             public void actionPerformed(ActionEvent e) {
                 if( Arrays.equals(passwordField.getPassword(), passwordFieldConfirmation.getPassword()) ) {
-                    Random rand = new Random();
-                    int salt = rand.nextInt();
-                    if(salt < 0) {
-                        salt = salt*(-1);
-                    }
+                    String salt = AuthController.generateSalt();
+
                     try {
-                        String newHash = AuthController.getPasswordHash(passwordField.getPassword().toString(), salt);
-                        DbSingletonController.createConnection();
-                        DbSingletonController.createStatement();
+                        String newHash = AuthController.getPasswordHash(passwordField.getText(), String.valueOf(salt), true);
+                        if (newHash != "nok") {
+                            DbSingletonController.createConnection();
+                            DbSingletonController.createStatement();
+                            X509Certificate certificate = generateCertificate(f[0]);
+                            String LoginNome = certificate.getSubjectDN().getName().split(",")[0].split("=")[1];
 
-                        String LoginNome = extractLoginNomeFromCertificate(f[0]);
+                            String query = "Update Usuario" +
+                                    " set hashedPassword = '" + newHash + "'," +
+                                    " salt = '" + salt + "'" +
+                                    " where LoginNome='" + LoginNome + "'; ";
 
-                        String query = "Update Usuario" +
-                                " set hashedPassword = '"+ newHash +"'," +
-                                " salt = '"+ String.valueOf(salt) +"'" +
-                                " where LoginNome='"+ LoginNome  +"'; ";
-
-                        int rowAffected = DbSingletonController.executeUpdate(query);
-                        DbSingletonController.closeConnection();
-                        int result = JOptionPane.showConfirmDialog(null, "Usuário alterado com sucesso!","Atenção",JOptionPane.OK_CANCEL_OPTION);
-                        if (result == JOptionPane.OK_OPTION) {
-                            Clear();
-                            builSystemUI(model);
+                            int rowAffected = DbSingletonController.executeUpdate(query);
+                            DbSingletonController.closeConnection();
+                            int result = JOptionPane.showConfirmDialog(null, "Usuário alterado com sucesso!", "Atenção", JOptionPane.OK_CANCEL_OPTION);
+                            if (result == JOptionPane.OK_OPTION) {
+                                Clear();
+                                builSystemUI(model);
+                            }
                         }
-
-
-                    } catch (NoSuchAlgorithmException noSuchAlgorithmException) {
-                        noSuchAlgorithmException.printStackTrace();
+                        else {
+                            JOptionPane.showConfirmDialog(null, "Senha com números consecutivos!", "Senha inválida", JOptionPane.OK_OPTION);
+                        }
                     } catch (UnsupportedEncodingException unsupportedEncodingException) {
                         unsupportedEncodingException.printStackTrace();
                     }  catch (SQLException throwables) {
@@ -464,6 +490,9 @@ public class SystemContainer extends JPanel implements Observer {
                     } catch (IOException ioException) {
                         ioException.printStackTrace();
                     }
+                }
+                else {
+                    JOptionPane.showConfirmDialog(null, "Os campos SENHA e CONFIRMA SENHA não correspondem.", "Senha inválida", JOptionPane.OK_OPTION);
                 }
             }
         });

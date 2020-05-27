@@ -22,7 +22,6 @@ import java.util.Base64;
 public class AuthController {
 
     private static AuthController auth = null;
-    final protected static char[] hexArray = "0123456789ABCDEF".toCharArray();
 
     private AuthController() {
     }
@@ -63,7 +62,7 @@ public class AuthController {
         rs = DbSingletonController.executeQuery(String.format("select hashedPassword ,salt from Usuario where LoginNome='%s'", login));
         if (rs != null && rs.next()) {
             String dbhashedPassword = rs.getString(1);
-            int dbSalt = rs.getInt(2);
+            String dbSalt = rs.getString(2);
             int length = digits.size();
             for (int i = 0; i < 2; i++) {
                 for (int j = 0; j < 2; j++) {
@@ -78,7 +77,7 @@ public class AuthController {
                                             for (int o = 0; o < 2; o++) {
                                                 password = ((String[]) digits.get(0))[i] + ((String[]) digits.get(1))[j] + ((String[]) digits.get(2))[k] +
                                                         ((String[]) digits.get(3))[l] + ((String[]) digits.get(4))[m] + ((String[]) digits.get(5))[n] + ((String[]) digits.get(6))[o];
-                                                hashedPassword = getPasswordHash(password, dbSalt);
+                                                hashedPassword = getPasswordHash(password, dbSalt, false);
                                                 if (hashedPassword.equals(dbhashedPassword)) {
                                                     return true;
                                                 }
@@ -89,7 +88,7 @@ public class AuthController {
                                                     password = ((String[]) digits.get(0))[i] + ((String[]) digits.get(1))[j] + ((String[]) digits.get(2))[k] +
                                                             ((String[]) digits.get(3))[l] + ((String[]) digits.get(4))[m] + ((String[]) digits.get(5))[n] + ((String[]) digits.get(6))[o]
                                                             + ((String[]) digits.get(7))[p];
-                                                    hashedPassword = getPasswordHash(password, dbSalt);
+                                                    hashedPassword = getPasswordHash(password, dbSalt, false);
                                                     if (hashedPassword.equals(dbhashedPassword)) {
                                                         return true;
                                                     }
@@ -99,7 +98,7 @@ public class AuthController {
                                     } else {
                                         password = ((String[]) digits.get(0))[i] + ((String[]) digits.get(1))[j] + ((String[]) digits.get(2))[k] +
                                                 ((String[]) digits.get(3))[l] + ((String[]) digits.get(4))[m] + ((String[]) digits.get(5))[n];
-                                        hashedPassword = getPasswordHash(password, dbSalt);
+                                        hashedPassword = getPasswordHash(password, dbSalt, false);
                                         if (hashedPassword.equals(dbhashedPassword)) {
                                             return true;
                                         }
@@ -115,30 +114,88 @@ public class AuthController {
         return false;
     }
 
-    private static String bytesToHex(byte[] bytes) {
-        char[] hexChars = new char[bytes.length * 2];
-        int v;
-        for (int j = 0; j < bytes.length; j++) {
-            v = bytes[j] & 0xFF;
-            hexChars[j * 2] = hexArray[v >>> 4];
-            hexChars[j * 2 + 1] = hexArray[v & 0x0F];
+    private static boolean validatePassword (String key) {
+        char[] numbers = key.toCharArray();
+        for(int i = 0; i < numbers.length; i ++) {
+            if((i+1) < numbers.length){
+                if(     ((Integer.valueOf(String.valueOf(numbers[i]))+1) == Integer.valueOf(String.valueOf(numbers[i+1])))
+                        ||
+                        (Integer.valueOf(String.valueOf(numbers[i]))) == Integer.valueOf(String.valueOf(numbers[i+1]))-1 ) {
+                    return false;
+                }
+
+            }
+            else{
+                break;
+            }
         }
-        return new String(hexChars);
+        return true;
     }
 
-
-    public static String getPasswordHash(String password, Integer salt) throws NoSuchAlgorithmException, UnsupportedEncodingException {
-        password = password + String.format("%09d", salt);
-        try {
-            MessageDigest md5 = MessageDigest.getInstance("MD5");
-            String ret = bytesToHex(md5.digest(password.getBytes("UTF-8")));
-            return ret;
-        } catch (NoSuchAlgorithmException ex) {
-            throw ex;
-        } catch (UnsupportedEncodingException ex) {
-            throw ex;
+    public static String getPasswordHash (String key, String salt, boolean isAltering) {
+        if(isAltering) {
+            if (validatePassword(key)) {
+                byte[] calculated_hash;
+                String calculated_hash_HEX;
+                MessageDigest md = null;
+                try {
+                    md = MessageDigest.getInstance("SHA1");
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                String combined = key + salt;
+                byte[] input = combined.getBytes();
+                md.update(input);
+                calculated_hash = md.digest();
+                calculated_hash_HEX = ByteToString(calculated_hash);
+                return calculated_hash_HEX;
+            }
+            return "nok";
+        }
+        else{
+            byte[] calculated_hash;
+            String calculated_hash_HEX;
+            MessageDigest md = null;
+            try {
+                md = MessageDigest.getInstance("SHA1");
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            String combined = key + salt;
+            byte[] input = combined.getBytes();
+            md.update(input);
+            calculated_hash = md.digest();
+            calculated_hash_HEX = ByteToString(calculated_hash);
+            return calculated_hash_HEX;
         }
     }
+
+    public static String generateSalt() {
+        final String upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        final String lower = upper.toLowerCase();
+        final String digits = "0123456789";
+        final String alphanum = upper + lower + digits;
+
+        int count = 10;
+        StringBuilder builder = new StringBuilder();
+        while (count-- != 0) {
+            int character = (int)(Math.random()*alphanum.length());
+            builder.append(alphanum.charAt(character));
+        }
+        return builder.toString();
+    }
+
+    private static String ByteToString(byte[] info) {
+        // convert to hexadecimal
+        StringBuffer buf = new StringBuffer();
+        for (int i = 0; i < info.length; i++) {
+            String hex = Integer.toHexString(0x0100 + (info[i] & 0x00FF))
+                    .substring(1);
+            buf.append((hex.length() < 2 ? "0" : "") + hex);
+        }
+        return buf.toString();
+    }
+
 
     public static PrivateKey getBased64PrivateKey (String fraseSecreta, File userKeyFile)
             throws NoSuchAlgorithmException,
@@ -187,6 +244,7 @@ public class AuthController {
         statement.execute();
     }
 
+
     public static PublicKey getUserPublicKeyFromCertificate (String login) throws SQLException, CertificateException {
         boolean is64BasedCertificate = false;
         ResultSet rs = null;
@@ -203,7 +261,7 @@ public class AuthController {
         return null;
     }
 
-    public static Object decryptFile(UserModel model, ArrayList<File> indexFiles) throws NoSuchPaddingException,
+    public static Object decryptFile(UserModel model, ArrayList<File> indexFiles, boolean isIndex) throws NoSuchPaddingException,
             NoSuchAlgorithmException, InvalidKeyException,
             IOException, BadPaddingException,
             IllegalBlockSizeException, SignatureException {
@@ -253,10 +311,10 @@ public class AuthController {
         sig.initVerify(model.getPublicKey());
         sig.update(newEncPlainTextBytes);
         if (sig.verify(asdFileByteArray))
-            if(envFile.getName().contains("index"))
+            if(isIndex)
                 return encPlainText.split("\n");
             else{
-                return encPlainText;
+                return newEncPlainTextBytes;
             }
         else{
             return null;
