@@ -14,6 +14,10 @@ public class UserModel {
 
     public UserModel() {}
 
+    public UserModel(String _loginNome) {
+        Login_Nome = _loginNome;
+    }
+
     public String getNome() { return Nome; }
     public String getLoginNome() { return Login_Nome; }
     public int getQtd_Acessos() { return Qtd_Acessos; }

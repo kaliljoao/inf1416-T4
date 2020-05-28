@@ -22,8 +22,10 @@ import java.security.cert.X509Certificate;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.Random;
 
 public class SystemContainer extends JPanel implements Observer {
@@ -31,6 +33,7 @@ public class SystemContainer extends JPanel implements Observer {
     private JFrame Frame;
     private CtrlRules Ctrl;
     private JFileChooser fileChooser = new JFileChooser();
+    private SimpleDateFormat formatter= new SimpleDateFormat("yyyy-MM-dd 'at' HH:mm:ss.SSS");
 
     public SystemContainer(JFrame frame, UserModel model) throws SQLException, ClassNotFoundException {
         AuthController.getInstance();
@@ -48,8 +51,11 @@ public class SystemContainer extends JPanel implements Observer {
 
         int rowAffected = DbSingletonController.executeUpdate(query);
         DbSingletonController.closeConnection();
-
+        AuthController.setUserModel(model);
         builSystemUI(model);
+
+        Date date = new Date(System.currentTimeMillis());
+        LogController.storeRegistry(5001, formatter.format(date),null, model);
     }
 
     private void builSystemUI ( UserModel model ) {
@@ -69,7 +75,17 @@ public class SystemContainer extends JPanel implements Observer {
         btnCadastro.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                changeToFormScreen(model);
+                Date date = new Date(System.currentTimeMillis());
+                try {
+                    LogController.storeRegistry(5002, formatter.format(date),null, model);
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                }
+                try {
+                    changeToFormScreen(model);
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                }
             }
         });
 
@@ -81,7 +97,17 @@ public class SystemContainer extends JPanel implements Observer {
         btnAlterPassword.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                changeToAlterPasswordScreen(model);
+                Date date = new Date(System.currentTimeMillis());
+                try {
+                    LogController.storeRegistry(5003, formatter.format(date),null, model);
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                }
+                try {
+                    changeToAlterPasswordScreen(model);
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                }
             }
         });
         buttonsPanel.add(btnAlterPassword);
@@ -90,7 +116,17 @@ public class SystemContainer extends JPanel implements Observer {
         btnConsultarArquivos.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                changeToFilesConsulterScreen(model);
+                Date date = new Date(System.currentTimeMillis());
+                try {
+                    LogController.storeRegistry(5004, formatter.format(date),null, model);
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                }
+                try {
+                    changeToFilesConsulterScreen(model);
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                }
             }
         });
         buttonsPanel.add(btnConsultarArquivos);
@@ -100,8 +136,34 @@ public class SystemContainer extends JPanel implements Observer {
             @Override
             public void actionPerformed(ActionEvent e) {
                 int result = JOptionPane.showConfirmDialog(null, "Deseja fechar a aplicação?","Atenção",JOptionPane.OK_CANCEL_OPTION);
+
+                Date date = new Date(System.currentTimeMillis());
+                try {
+                    LogController.storeRegistry(9001, formatter.format(date),null, model);
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                }
+
                 if (result == JOptionPane.OK_OPTION) {
-                    CloseItself();
+                    try {
+
+                        date = new Date(System.currentTimeMillis());
+                        LogController.storeRegistry(9003, formatter.format(date),null, model);
+
+                        date = new Date(System.currentTimeMillis());
+                        LogController.storeRegistry(5005, formatter.format(date),null, model);
+                        CloseItself();
+                    } catch (SQLException ex) {
+                        ex.printStackTrace();
+                    }
+                }
+                else {
+                    date = new Date(System.currentTimeMillis());
+                    try {
+                        LogController.storeRegistry(9004, formatter.format(date),null, model);
+                    } catch (SQLException ex) {
+                        ex.printStackTrace();
+                    }
                 }
             }
         });
@@ -117,7 +179,7 @@ public class SystemContainer extends JPanel implements Observer {
         this.repaint();
     }
 
-    private void changeToFilesConsulterScreen(UserModel model) {
+    private void changeToFilesConsulterScreen(UserModel model) throws SQLException {
         JFileChooser fodlerChooser = new JFileChooser();
         fodlerChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
         JPanel menu = new JPanel();
@@ -150,6 +212,14 @@ public class SystemContainer extends JPanel implements Observer {
         btnListarArquivos.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
+
+                Date date = new Date(System.currentTimeMillis());
+                try {
+                    LogController.storeRegistry(8003, formatter.format(date),null, model);
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                }
+
                 File[] filesInDirectory = fodlerChooser.getSelectedFile().listFiles();
                 ArrayList<File> indexFiles = new ArrayList<File>();
                 for(File file : filesInDirectory) {
@@ -160,70 +230,93 @@ public class SystemContainer extends JPanel implements Observer {
                 try {
                     String[] listFiles = (String[])AuthController.decryptFile(model, indexFiles, true);
 
-                    for(int i = 0; i < listFiles.length; i++) {
-                        JLabel lblArq = new JLabel(listFiles[i]);
-                        JButton btnArq = new JButton("Salvar");
-                        btnArq.setPreferredSize(new Dimension(50,20));
-                        int finalI = i;
-                        ArrayList<File> arqFiles = new ArrayList<File>();
-                        btnArq.addActionListener(new ActionListener() {
-                            @Override
-                            public void actionPerformed(ActionEvent e) {
-                                for(File file : filesInDirectory) {
-                                    if(file.getName().contains(listFiles[finalI].split(" ")[0])){
-                                        arqFiles.add(file);
-                                    }
-                                }
-                                try {
-                                    byte[] retDecriptedFile = (byte[])AuthController.decryptFile(model, arqFiles, false);
-                                    if(retDecriptedFile != null) {
-                                        File file = new File(listFiles[finalI].split(" ")[1]);
-                                        FileOutputStream fos = null;
+                    if(listFiles != null) {
+                        for (int i = 0; i < listFiles.length; i++) {
+                            JLabel lblArq = new JLabel(listFiles[i]);
+                            JButton btnArq = new JButton("Salvar");
+                            btnArq.setPreferredSize(new Dimension(50, 20));
+                            int finalI = i;
+                            ArrayList<File> arqFiles = new ArrayList<File>();
 
-                                        fos = new FileOutputStream(file);
-                                        fos.write(retDecriptedFile);
 
-                                        if (fos != null) {
-                                            fos.close();
+                            btnArq.addActionListener(new ActionListener() {
+                                @Override
+                                public void actionPerformed(ActionEvent e) {
+
+
+
+                                    for (File file : filesInDirectory) {
+                                        if (file.getName().contains(listFiles[finalI].split(" ")[0])) {
+                                            arqFiles.add(file);
                                         }
                                     }
 
-                                } catch (NoSuchPaddingException noSuchPaddingException) {
-                                    noSuchPaddingException.printStackTrace();
-                                } catch (NoSuchAlgorithmException noSuchAlgorithmException) {
-                                    noSuchAlgorithmException.printStackTrace();
-                                } catch (InvalidKeyException invalidKeyException) {
-                                    invalidKeyException.printStackTrace();
-                                } catch (IOException ioException) {
-                                    ioException.printStackTrace();
-                                } catch (BadPaddingException badPaddingException) {
-                                    badPaddingException.printStackTrace();
-                                } catch (IllegalBlockSizeException illegalBlockSizeException) {
-                                    illegalBlockSizeException.printStackTrace();
-                                } catch (SignatureException signatureException) {
-                                    signatureException.printStackTrace();
+                                    Date date = new Date(System.currentTimeMillis());
+                                    try {
+                                        LogController.storeRegistry(8010, formatter.format(date),listFiles[finalI].split(" ")[1], model);
+                                    } catch (SQLException ex) {
+                                        ex.printStackTrace();
+                                    }
+
+                                    try {
+
+                                        if (listFiles[finalI].split(" ")[3] == model.getGrupo().toString() || listFiles[finalI].split(" ")[2] == model.getLoginNome()){
+                                            date = new Date(System.currentTimeMillis());
+                                            LogController.storeRegistry(8011, formatter.format(date),listFiles[finalI].split(" ")[1], model);
+
+                                            byte[] retDecriptedFile = (byte[]) AuthController.decryptFile(model, arqFiles, false);
+                                            if (retDecriptedFile != null) {
+                                                File file = new File(listFiles[finalI].split(" ")[1]);
+                                                FileOutputStream fos = null;
+
+                                                fos = new FileOutputStream(file);
+                                                fos.write(retDecriptedFile);
+
+                                                if (fos != null) {
+                                                    fos.close();
+                                                }
+                                            }
+                                        }
+                                        else {
+                                            date = new Date(System.currentTimeMillis());
+                                            LogController.storeRegistry(8012, formatter.format(date),listFiles[finalI].split(" ")[1], model);
+                                        }
+
+                                    } catch (NoSuchPaddingException noSuchPaddingException) {
+                                        noSuchPaddingException.printStackTrace();
+                                    } catch (NoSuchAlgorithmException noSuchAlgorithmException) {
+                                        noSuchAlgorithmException.printStackTrace();
+                                    }  catch (IOException ioException) {
+                                        ioException.printStackTrace();
+                                    } catch (IllegalBlockSizeException illegalBlockSizeException) {
+                                        illegalBlockSizeException.printStackTrace();
+                                    } catch (SignatureException signatureException) {
+                                        signatureException.printStackTrace();
+                                    } catch (SQLException | InvalidKeyException ex) {
+                                        ex.printStackTrace();
+                                    }
                                 }
-                            }
-                        });
-                        buttonsPanel.add(lblArq);
-                        buttonsPanel.add(btnArq);
+                            });
+                            buttonsPanel.add(lblArq);
+                            buttonsPanel.add(btnArq);
+                        }
                     }
                     updateUI();
                     repaint();
+                    date = new Date(System.currentTimeMillis());
+                    LogController.storeRegistry(8009, formatter.format(date),null, model);
                 } catch (NoSuchPaddingException noSuchPaddingException) {
                     noSuchPaddingException.printStackTrace();
                 } catch (NoSuchAlgorithmException noSuchAlgorithmException) {
                     noSuchAlgorithmException.printStackTrace();
-                } catch (InvalidKeyException invalidKeyException) {
-                    invalidKeyException.printStackTrace();
                 } catch (IOException ioException) {
                     ioException.printStackTrace();
-                } catch (BadPaddingException badPaddingException) {
-                    badPaddingException.printStackTrace();
                 } catch (IllegalBlockSizeException illegalBlockSizeException) {
                     illegalBlockSizeException.printStackTrace();
                 } catch (SignatureException signatureException) {
                     signatureException.printStackTrace();
+                } catch (SQLException | InvalidKeyException ex) {
+                    ex.printStackTrace();
                 }
             }
         });
@@ -234,6 +327,12 @@ public class SystemContainer extends JPanel implements Observer {
         btnCancelar.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
+                Date date = new Date(System.currentTimeMillis());
+                try {
+                    LogController.storeRegistry(8002, formatter.format(date),null, model);
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                }
                 Clear();
                 builSystemUI(model);
             }
@@ -252,9 +351,12 @@ public class SystemContainer extends JPanel implements Observer {
         this.add(menu);
         this.updateUI();
         this.repaint();
+
+        Date date = new Date(System.currentTimeMillis());
+        LogController.storeRegistry(8001, formatter.format(date),null, model);
     }
 
-    private void changeToFormScreen( UserModel model ) {
+    private void changeToFormScreen( UserModel model ) throws SQLException {
         fileChooser = new JFileChooser();
         final File[] f = new File[1];
         JPanel menu = new JPanel();
@@ -302,6 +404,12 @@ public class SystemContainer extends JPanel implements Observer {
         btnCancelar.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
+                Date date = new Date(System.currentTimeMillis());
+                try {
+                    LogController.storeRegistry(6007, formatter.format(date),null, model);
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                }
                 Clear();
                 builSystemUI(model);
             }
@@ -310,6 +418,12 @@ public class SystemContainer extends JPanel implements Observer {
         btnConfirmar.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
+                Date date = new Date(System.currentTimeMillis());
+                try {
+                    LogController.storeRegistry(6002, formatter.format(date),null, model);
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                }
                 try {
                     f[0] = fileChooser.getSelectedFile();
                     X509Certificate certificate = generateCertificate(f[0]);
@@ -359,8 +473,15 @@ public class SystemContainer extends JPanel implements Observer {
 
                                 int resultConfirm = JOptionPane.showConfirmDialog(null, "Usuário criado com sucesso!", "Atenção", JOptionPane.OK_OPTION);
                                 if (resultConfirm == JOptionPane.OK_OPTION) {
+                                    date = new Date(System.currentTimeMillis());
+                                    LogController.storeRegistry(6005, formatter.format(date),null, model);
+
                                     Clear();
                                     builSystemUI(model);
+                                }
+                                else {
+                                    date = new Date(System.currentTimeMillis());
+                                    LogController.storeRegistry(6006, formatter.format(date),null, model);
                                 }
                             }
                             else{
@@ -385,6 +506,9 @@ public class SystemContainer extends JPanel implements Observer {
         this.add(menu);
         this.updateUI();
         this.repaint();
+
+        Date date = new Date(System.currentTimeMillis());
+        LogController.storeRegistry(6001, formatter.format(date),null, model);
     }
 
     private X509Certificate generateCertificate(File f) throws CertificateException, IOException {
@@ -408,7 +532,7 @@ public class SystemContainer extends JPanel implements Observer {
         return  (X509Certificate) cf.generateCertificate(bytes);
     }
 
-    private void changeToAlterPasswordScreen( UserModel model ) {
+    private void changeToAlterPasswordScreen( UserModel model ) throws SQLException {
         JPanel menu = new JPanel();
         final File[] f = new File[1];
         menu.setPreferredSize(new Dimension(450, 280));
@@ -465,6 +589,23 @@ public class SystemContainer extends JPanel implements Observer {
                             X509Certificate certificate = generateCertificate(f[0]);
                             String LoginNome = certificate.getSubjectDN().getName().split(",")[0].split("=")[1];
 
+                            String registerInformations = String.format(
+                                            "Versão Cert: %s\n" +
+                                            "Série Cert: %s\n" +
+                                            "Validade Cert: %s\n" +
+                                            "Tipo Assinatura Cert: %s\n" +
+                                            "Sujeito Cert: %s\n" +
+                                            "Emissor Cert: %s\n" +
+                                            "E-mail Cert: %s",
+                                    certificate.getVersion(),
+                                    certificate.getSerialNumber(),
+                                    certificate.getNotAfter(),
+                                    certificate.getSigAlgName(),
+                                    certificate.getSubjectX500Principal().getName(),
+                                    certificate.getIssuerX500Principal().getName(),
+                                    certificate.getSubjectX500Principal().getName()
+                            );
+
                             String query = "Update Usuario" +
                                     " set hashedPassword = '" + newHash + "'," +
                                     " salt = '" + salt + "'" +
@@ -472,13 +613,23 @@ public class SystemContainer extends JPanel implements Observer {
 
                             int rowAffected = DbSingletonController.executeUpdate(query);
                             DbSingletonController.closeConnection();
-                            int result = JOptionPane.showConfirmDialog(null, "Usuário alterado com sucesso!", "Atenção", JOptionPane.OK_CANCEL_OPTION);
-                            if (result == JOptionPane.OK_OPTION) {
-                                Clear();
-                                builSystemUI(model);
+                            if (JOptionPane.showConfirmDialog(null, registerInformations, "Atenção", JOptionPane.OK_CANCEL_OPTION) == JOptionPane.OK_OPTION){
+                                int result = JOptionPane.showConfirmDialog(null, "Senha alterada com sucesso!", "Atenção", JOptionPane.OK_CANCEL_OPTION);
+                                if (result == JOptionPane.OK_OPTION) {
+                                    Date date = new Date(System.currentTimeMillis());
+                                    LogController.storeRegistry(7004, formatter.format(date),null, model);
+                                    Clear();
+                                    builSystemUI(model);
+                                }
+                            }
+                            else {
+                                Date date = new Date(System.currentTimeMillis());
+                                LogController.storeRegistry(7005, formatter.format(date),null, model);
                             }
                         }
                         else {
+                            Date date = new Date(System.currentTimeMillis());
+                            LogController.storeRegistry(7002, formatter.format(date),null, model);
                             JOptionPane.showConfirmDialog(null, "Senha com números consecutivos!", "Senha inválida", JOptionPane.OK_OPTION);
                         }
                     } catch (UnsupportedEncodingException unsupportedEncodingException) {
@@ -500,6 +651,12 @@ public class SystemContainer extends JPanel implements Observer {
         btnCancelar.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
+                Date date = new Date(System.currentTimeMillis());
+                try {
+                    LogController.storeRegistry(7006, formatter.format(date),null, model);
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                }
                 Clear();
                 builSystemUI(model);
             }
@@ -512,6 +669,9 @@ public class SystemContainer extends JPanel implements Observer {
         this.add(menu);
         this.updateUI();
         this.repaint();
+
+        Date date = new Date(System.currentTimeMillis());
+        LogController.storeRegistry(7001, formatter.format(date),null, model);
     }
 
     private void Clear() {
@@ -520,7 +680,9 @@ public class SystemContainer extends JPanel implements Observer {
         this.updateUI();
     }
 
-    public void CloseItself() {
+    public void CloseItself() throws SQLException {
+        Date date = new Date(System.currentTimeMillis());
+        LogController.storeRegistry(1002, formatter.format(date),null,null);
         Frame.setVisible(false);
         Frame.dispose();
     }

@@ -14,14 +14,18 @@ import java.security.cert.X509Certificate;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.sql.*;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Date;
 
 
 public class AuthController {
 
     private static AuthController auth = null;
+    private static UserModel model;
+    private static SimpleDateFormat formatter= new SimpleDateFormat("yyyy-MM-dd 'at' HH:mm:ss.SSS");
 
     private AuthController() {
     }
@@ -35,23 +39,30 @@ public class AuthController {
         return auth;
     }
 
-    public static boolean findUserByLogin(String email) {
+    public static void setUserModel(UserModel _model) {
+        model = _model;
+    }
+
+    public static UserModel getUserModel(){
+        return model;
+    }
+
+    public static Object[] findUserByLogin(String email) {
         try {
             ResultSet rs = null;
             DbSingletonController.createConnection();
             DbSingletonController.createStatement();
-            rs = DbSingletonController.executeQuery(String.format("select * from Usuario where LoginNome = '%s'", email));
+            rs = DbSingletonController.executeQuery(String.format("select LoginNome, isBlocked from Usuario where LoginNome = '%s'", email));
             if (rs != null && rs.next()) {
-                String login = rs.getString(3);
+                String login = rs.getString(1);
                 if (email.equalsIgnoreCase(login)) {
-                    DbSingletonController.closeConnection();
-                    return true;
+                    return new Object[] { true , rs.getInt(2) };
                 }
-                return false;
+                return new Object[] { false , -1 };
             }
-            return false;
+            return new Object[] { false , -1 };
         } catch (Exception e) {
-            return false;
+            return new Object[] { false , -1 };
         }
     }
 
@@ -132,7 +143,7 @@ public class AuthController {
         return true;
     }
 
-    public static String getPasswordHash (String key, String salt, boolean isAltering) {
+    public static String getPasswordHash (String key, String salt, boolean isAltering) throws SQLException {
         if(isAltering) {
             if (validatePassword(key)) {
                 byte[] calculated_hash;
@@ -150,6 +161,8 @@ public class AuthController {
                 calculated_hash_HEX = ByteToString(calculated_hash);
                 return calculated_hash_HEX;
             }
+            Date date = new Date(System.currentTimeMillis());
+            LogController.storeRegistry(6003, formatter.format(date),null, model);
             return "nok";
         }
         else{
@@ -197,11 +210,11 @@ public class AuthController {
     }
 
 
-    public static PrivateKey getBased64PrivateKey (String fraseSecreta, File userKeyFile)
+    public static PrivateKey getBased64PrivateKey (String fraseSecreta, File userKeyFile, String Login)
             throws NoSuchAlgorithmException,
             NoSuchProviderException, NoSuchPaddingException, InvalidKeyException,
             IOException, BadPaddingException, IllegalBlockSizeException,
-            InvalidKeySpecException
+            InvalidKeySpecException, SQLException
     {
         SecureRandom pnrg = SecureRandom.getInstance("SHA1PRNG");
         byte[] fraseSecretaBytes = fraseSecreta.getBytes();
@@ -216,7 +229,16 @@ public class AuthController {
         cipher.init(Cipher.DECRYPT_MODE, key);
 
         Path keyPath = Paths.get(userKeyFile.getPath());
-        byte[] newPlainText = cipher.doFinal(Files.readAllBytes(keyPath));
+
+        byte[] newPlainText = null;
+        try {
+            newPlainText = cipher.doFinal(Files.readAllBytes(keyPath));
+        }
+        catch (Exception e){ //TRATAR ERRO 4004
+            java.util.Date date = new Date(System.currentTimeMillis());
+            LogController.storeRegistry(4005, formatter.format(date),null, new UserModel(Login));
+        }
+
         String userKeyBased64 = new String(newPlainText, "UTF8");
 
         String[] userKeyBased64Array = Arrays.copyOfRange(userKeyBased64.split("\n"),1,userKeyBased64.split("\n").length -1);
@@ -261,13 +283,14 @@ public class AuthController {
         return null;
     }
 
-    public static Object decryptFile(UserModel model, ArrayList<File> indexFiles, boolean isIndex) throws NoSuchPaddingException,
-            NoSuchAlgorithmException, InvalidKeyException,
-            IOException, BadPaddingException,
-            IllegalBlockSizeException, SignatureException {
+    public static Object decryptFile(UserModel model, ArrayList<File> indexFiles, boolean isIndex) throws
+            NoSuchAlgorithmException,
+            IOException,
+            IllegalBlockSizeException, SQLException, NoSuchPaddingException, SignatureException, InvalidKeyException {
         File envFile = null;
         File encFile = null;
         File asdFile = null;
+        Date date;
 
         for(File f: indexFiles) {
             if (f.getName().contains("enc")){
@@ -282,11 +305,28 @@ public class AuthController {
         }
 
         // decriptação do arquivo .env
-        Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
+        Cipher cipher = null;
+        cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
         cipher.init(Cipher.DECRYPT_MODE, model.getPrivateKey());
 
+
         Path envPath = Paths.get(envFile.getPath());
-        byte[] newEnvPlainText = cipher.doFinal(Files.readAllBytes(envPath));
+        byte[] newEnvPlainText = new byte[0];
+
+        try {
+            newEnvPlainText = cipher.doFinal(Files.readAllBytes(envPath));
+            date = new Date(System.currentTimeMillis());
+            LogController.storeRegistry(8013, formatter.format(date),envFile.getName(), model);
+        } catch (BadPaddingException e) {
+            if (isIndex) {
+                date = new Date(System.currentTimeMillis());
+                LogController.storeRegistry(8007, formatter.format(date),null, model);
+            }
+            else {
+                date = new Date(System.currentTimeMillis());
+                LogController.storeRegistry(8015, formatter.format(date), envFile.getName(), model);
+            }
+        }
         String seedGenerated = new String(newEnvPlainText, "UTF8");
 
 
@@ -301,26 +341,82 @@ public class AuthController {
 
         // decriptação do arquivo .enc
         cipher = Cipher.getInstance("DES/ECB/PKCS5Padding");
-        cipher.init(Cipher.DECRYPT_MODE, key);
-        byte[] newEncPlainTextBytes = cipher.doFinal(Files.readAllBytes(Paths.get(encFile.getPath())));
+        try {
+            cipher.init(Cipher.DECRYPT_MODE, key);
+        } catch (InvalidKeyException e) {
+            e.printStackTrace();
+        }
+        byte[] newEncPlainTextBytes = new byte[0];
+        try {
+            newEncPlainTextBytes = cipher.doFinal(Files.readAllBytes(Paths.get(encFile.getPath())));
+            if (isIndex) {
+                date = new Date(System.currentTimeMillis());
+                LogController.storeRegistry(8005, formatter.format(date), null, model);
+            }
+            else {
+                date = new Date(System.currentTimeMillis());
+                LogController.storeRegistry(8013, formatter.format(date), encFile.getName(), model);
+            }
+        } catch (BadPaddingException e) {
+            if (isIndex) {
+                date = new Date(System.currentTimeMillis());
+                LogController.storeRegistry(8007, formatter.format(date), null, model);
+            }
+            else {
+                date = new Date(System.currentTimeMillis());
+                LogController.storeRegistry(8015, formatter.format(date), encFile.getName(), model);
+            }
+        }
         String encPlainText = new String(newEncPlainTextBytes, "UTF8");
+
 
         // Verificação da assinatura digital
         Signature sig = Signature.getInstance("SHA1WithRSA");
         byte[] asdFileByteArray = Files.readAllBytes(Paths.get(asdFile.getPath()));
-        sig.initVerify(model.getPublicKey());
+        try {
+            sig.initVerify(model.getPublicKey());
+        } catch (InvalidKeyException e) {
+            e.printStackTrace();
+        }
         sig.update(newEncPlainTextBytes);
-        if (sig.verify(asdFileByteArray))
-            if(isIndex)
-                return encPlainText.split("\n");
-            else{
-                return newEncPlainTextBytes;
+
+
+        try {
+            if (sig.verify(asdFileByteArray)) {
+                date = new Date(System.currentTimeMillis());
+                LogController.storeRegistry(8006, formatter.format(date), null, model);
+
+                if (isIndex)
+                    return encPlainText.split("\n");
+                else {
+                    date = new Date(System.currentTimeMillis());
+                    LogController.storeRegistry(8014, formatter.format(date), encFile.getName(), model);
+                    return newEncPlainTextBytes;
+                }
             }
-        else{
+            else{
+                if(isIndex) {
+                    date = new Date(System.currentTimeMillis());
+                    LogController.storeRegistry(8008, formatter.format(date), null, model);
+                }
+                else {
+                    date = new Date(System.currentTimeMillis());
+                    LogController.storeRegistry(8016, formatter.format(date), encFile.getName(), model);
+                }
+                return null;
+            }
+        } catch (SignatureException e) {
+            if(isIndex) {
+                date = new Date(System.currentTimeMillis());
+                LogController.storeRegistry(8008, formatter.format(date), null, model);
+            }
+            else {
+                date = new Date(System.currentTimeMillis());
+                LogController.storeRegistry(8016, formatter.format(date), encFile.getName(), model);
+            }
             return null;
         }
     }
-
 }
 
 
