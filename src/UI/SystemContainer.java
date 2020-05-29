@@ -188,7 +188,7 @@ public class SystemContainer extends JPanel implements Observer {
         JLabel loginLabel = new JLabel("Login: "+model.getLoginNome() + " | ");
         JLabel grupoLabel = new JLabel("Grupo: "+model.getGrupo().toString()+ " | ");
         JLabel nomeLabel = new JLabel("Nome: "+model.getNome() + " | ");
-        JLabel consultasLabel = new JLabel("Consultas: "+ Integer.toString(1)); // mudar para consultas vindas do banco
+        JLabel consultasLabel = new JLabel("Consultas: "+ Integer.toString(model.getQtd_Consultas())); // mudar para consultas vindas do banco
 
         GridLayout experimentLayout = new GridLayout(0,1);
         JPanel buttonsPanel = new JPanel();
@@ -203,6 +203,14 @@ public class SystemContainer extends JPanel implements Observer {
             @Override
             public void actionPerformed(ActionEvent e) {
                 fodlerChooser.showOpenDialog(null);
+                if (fodlerChooser.getSelectedFile() == null) {
+                    Date date = new Date(System.currentTimeMillis());
+                    try {
+                        LogController.storeRegistry(8004, formatter.format(date),null, model);
+                    } catch (SQLException throwables) {
+                        throwables.printStackTrace();
+                    }
+                }
             }
         });
         selectFolderPanel.add(btnProcurarPasta);
@@ -227,84 +235,99 @@ public class SystemContainer extends JPanel implements Observer {
                         indexFiles.add(file);
                     }
                 }
+                if(indexFiles.size() == 0){
+                    date = new Date(System.currentTimeMillis());
+                    try {
+                        LogController.storeRegistry(8004, formatter.format(date),null, model);
+                    } catch (SQLException throwables) {
+                        throwables.printStackTrace();
+                    }
+                    JOptionPane.showMessageDialog(null, "Pasta inválida!", "Atenção", JOptionPane.OK_OPTION);
+                }
                 try {
-                    String[] listFiles = (String[])AuthController.decryptFile(model, indexFiles, true);
+                    if(indexFiles.size() == 3) {
+                        String[] listFiles = (String[]) AuthController.decryptFile(model, indexFiles, true);
 
-                    if(listFiles != null) {
-                        for (int i = 0; i < listFiles.length; i++) {
-                            JLabel lblArq = new JLabel(listFiles[i]);
-                            JButton btnArq = new JButton("Salvar");
-                            btnArq.setPreferredSize(new Dimension(50, 20));
-                            int finalI = i;
-                            ArrayList<File> arqFiles = new ArrayList<File>();
-
-
-                            btnArq.addActionListener(new ActionListener() {
-                                @Override
-                                public void actionPerformed(ActionEvent e) {
+                        if (listFiles != null) {
+                            AuthController.increaseConsultas(model.getLoginNome(), model.getQtd_Consultas()+1);
+                            for (int i = 0; i < listFiles.length; i++) {
+                                JLabel lblArq = new JLabel(listFiles[i]);
+                                JButton btnArq = new JButton("Salvar");
+                                btnArq.setPreferredSize(new Dimension(50, 20));
+                                int finalI = i;
+                                ArrayList<File> arqFiles = new ArrayList<File>();
 
 
+                                btnArq.addActionListener(new ActionListener() {
+                                    @Override
+                                    public void actionPerformed(ActionEvent e) {
 
-                                    for (File file : filesInDirectory) {
-                                        if (file.getName().contains(listFiles[finalI].split(" ")[0])) {
-                                            arqFiles.add(file);
-                                        }
-                                    }
 
-                                    Date date = new Date(System.currentTimeMillis());
-                                    try {
-                                        LogController.storeRegistry(8010, formatter.format(date),listFiles[finalI].split(" ")[1], model);
-                                    } catch (SQLException ex) {
-                                        ex.printStackTrace();
-                                    }
-
-                                    try {
-
-                                        if (listFiles[finalI].split(" ")[3] == model.getGrupo().toString() || listFiles[finalI].split(" ")[2] == model.getLoginNome()){
-                                            date = new Date(System.currentTimeMillis());
-                                            LogController.storeRegistry(8011, formatter.format(date),listFiles[finalI].split(" ")[1], model);
-
-                                            byte[] retDecriptedFile = (byte[]) AuthController.decryptFile(model, arqFiles, false);
-                                            if (retDecriptedFile != null) {
-                                                File file = new File(listFiles[finalI].split(" ")[1]);
-                                                FileOutputStream fos = null;
-
-                                                fos = new FileOutputStream(file);
-                                                fos.write(retDecriptedFile);
-
-                                                if (fos != null) {
-                                                    fos.close();
-                                                }
+                                        for (File file : filesInDirectory) {
+                                            if (file.getName().contains(listFiles[finalI].split(" ")[0])) {
+                                                arqFiles.add(file);
                                             }
                                         }
-                                        else {
-                                            date = new Date(System.currentTimeMillis());
-                                            LogController.storeRegistry(8012, formatter.format(date),listFiles[finalI].split(" ")[1], model);
+
+                                        Date date = new Date(System.currentTimeMillis());
+                                        try {
+                                            LogController.storeRegistry(8010, formatter.format(date), listFiles[finalI].split(" ")[1], model);
+                                        } catch (SQLException ex) {
+                                            ex.printStackTrace();
                                         }
 
-                                    } catch (NoSuchPaddingException noSuchPaddingException) {
-                                        noSuchPaddingException.printStackTrace();
-                                    } catch (NoSuchAlgorithmException noSuchAlgorithmException) {
-                                        noSuchAlgorithmException.printStackTrace();
-                                    }  catch (IOException ioException) {
-                                        ioException.printStackTrace();
-                                    } catch (IllegalBlockSizeException illegalBlockSizeException) {
-                                        illegalBlockSizeException.printStackTrace();
-                                    } catch (SignatureException signatureException) {
-                                        signatureException.printStackTrace();
-                                    } catch (SQLException | InvalidKeyException ex) {
-                                        ex.printStackTrace();
+                                        try {
+                                            String gpArq = listFiles[finalI].split(" ")[3];
+                                            String loginNomeArq = listFiles[finalI].split(" ")[2];
+                                            if (gpArq.toLowerCase().equals(model.getGrupo().toString().toLowerCase()) || loginNomeArq.equals(model.getLoginNome())) {
+                                                date = new Date(System.currentTimeMillis());
+                                                LogController.storeRegistry(8011, formatter.format(date), listFiles[finalI].split(" ")[1], model);
+
+                                                byte[] retDecriptedFile = (byte[]) AuthController.decryptFile(model, arqFiles, false);
+                                                if (retDecriptedFile != null) {
+                                                    File file = new File(listFiles[finalI].split(" ")[1]);
+                                                    FileOutputStream fos = null;
+
+                                                    fos = new FileOutputStream(file);
+                                                    fos.write(retDecriptedFile);
+
+                                                    if (fos != null) {
+                                                        fos.close();
+                                                    }
+                                                }
+                                                JOptionPane.showMessageDialog(null, "Arquivo decriptado com sucesso!", "Atenção", JOptionPane.OK_OPTION);
+                                            } else {
+                                                date = new Date(System.currentTimeMillis());
+                                                LogController.storeRegistry(8012, formatter.format(date), listFiles[finalI].split(" ")[1], model);
+                                            }
+
+                                        } catch (NoSuchPaddingException noSuchPaddingException) {
+                                            noSuchPaddingException.printStackTrace();
+                                        } catch (NoSuchAlgorithmException noSuchAlgorithmException) {
+                                            noSuchAlgorithmException.printStackTrace();
+                                        } catch (IOException ioException) {
+                                            ioException.printStackTrace();
+                                        } catch (IllegalBlockSizeException illegalBlockSizeException) {
+                                            illegalBlockSizeException.printStackTrace();
+                                        } catch (SignatureException signatureException) {
+                                            signatureException.printStackTrace();
+                                        } catch (SQLException | InvalidKeyException ex) {
+                                            ex.printStackTrace();
+                                        }
                                     }
-                                }
-                            });
-                            buttonsPanel.add(lblArq);
-                            buttonsPanel.add(btnArq);
+                                });
+                                buttonsPanel.add(lblArq);
+                                buttonsPanel.add(btnArq);
+                            }
+                            date = new Date(System.currentTimeMillis());
+                            LogController.storeRegistry(8009, formatter.format(date), null, model);
                         }
+                        else {
+                            JOptionPane.showMessageDialog(null, "Você não tem acesso a essa pasta!", "Atenção", JOptionPane.OK_OPTION);
+                        }
+                        updateUI();
+                        repaint();
                     }
-                    updateUI();
-                    repaint();
-                    date = new Date(System.currentTimeMillis());
-                    LogController.storeRegistry(8009, formatter.format(date),null, model);
                 } catch (NoSuchPaddingException noSuchPaddingException) {
                     noSuchPaddingException.printStackTrace();
                 } catch (NoSuchAlgorithmException noSuchAlgorithmException) {
@@ -362,10 +385,18 @@ public class SystemContainer extends JPanel implements Observer {
         JPanel menu = new JPanel();
         menu.setPreferredSize(new Dimension(450, 280));
 
+        DbSingletonController.createConnection();
+        DbSingletonController.createStatement();
+
+        ResultSet rs = null;
+        rs = DbSingletonController.executeQuery("select COUNT(*) from Usuario;");
+        rs.next();
+
+
         JLabel loginLabel = new JLabel("Login: "+model.getLoginNome() + " | ");
         JLabel grupoLabel = new JLabel("Grupo: "+model.getGrupo().toString()+ " | ");
         JLabel nomeLabel = new JLabel("Nome: "+model.getNome() + " | ");
-        JLabel acessosLabel = new JLabel("Acessos: "+ Integer.toString(model.getQtd_Acessos()));
+        JLabel acessosLabel = new JLabel("Total de usuários: "+ Integer.toString(rs.getInt(1)));
         GridLayout experimentLayout = new GridLayout(0,2);
 
         JPanel buttonsPanel = new JPanel();
@@ -377,6 +408,14 @@ public class SystemContainer extends JPanel implements Observer {
             @Override
             public void actionPerformed(ActionEvent e) {
                 fileChooser.showOpenDialog(null);
+                if (fileChooser.getSelectedFile() == null) {
+                    Date date = new Date(System.currentTimeMillis());
+                    try {
+                        LogController.storeRegistry(6004, formatter.format(date),null, model);
+                    } catch (SQLException throwables) {
+                        throwables.printStackTrace();
+                    }
+                }
             }
         });
         buttonsPanel.add(btnBuscaCertificado);
@@ -446,7 +485,7 @@ public class SystemContainer extends JPanel implements Observer {
                                 certificate.getIssuerX500Principal().getName(),
                                 certificate.getSubjectX500Principal().getName()
                                 );
-                        int result = JOptionPane.showConfirmDialog(null, registerInformations, "Atenção", JOptionPane.OK_CANCEL_OPTION);
+                        int result = JOptionPane.showConfirmDialog(null, "Este é seu certificado?\n"+registerInformations, "Confirma", JOptionPane.OK_CANCEL_OPTION);
                         if (result == JOptionPane.OK_OPTION) {
                             String salt = AuthController.generateSalt();
                             String newHash = AuthController.getPasswordHash(passwordField.getPassword().toString(), salt, true);
@@ -553,6 +592,14 @@ public class SystemContainer extends JPanel implements Observer {
             public void actionPerformed(ActionEvent e) {
                 fileChooser.showOpenDialog(null);
                 f[0] = fileChooser.getSelectedFile();
+                if (f[0] == null) {
+                    Date date = new Date(System.currentTimeMillis());
+                    try {
+                        LogController.storeRegistry(7003, formatter.format(date),null, model);
+                    } catch (SQLException throwables) {
+                        throwables.printStackTrace();
+                    }
+                }
                 String filename = f[0].getAbsolutePath();
             }
         });

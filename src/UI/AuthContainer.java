@@ -10,6 +10,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Random;
@@ -39,6 +40,9 @@ public class AuthContainer extends JPanel implements Observer {
     private JFileChooser fileChooser = new JFileChooser();
     SimpleDateFormat formatter= new SimpleDateFormat("yyyy-MM-dd 'at' HH:mm:ss.SSS");
 
+    private int PasswordTries = 0;
+    private int PrivateKeyTries = 0;
+
     public AuthContainer(MainFrame mainFrame) throws SQLException, ClassNotFoundException {
         AuthController.getInstance();
         LogController.getInstance();
@@ -47,12 +51,22 @@ public class AuthContainer extends JPanel implements Observer {
         this.setAlignmentX(JComponent.CENTER_ALIGNMENT);
         Frame = mainFrame;
 
+        Ctrl = CtrlRules.getCtrlRules();
+        Ctrl.addObserver(this);
+
+        changeToLoginScreen();
+
+        Date date = new Date(System.currentTimeMillis());
+        LogController.storeRegistry(1001, formatter.format(date),null,null);
+
+        date = new Date(System.currentTimeMillis());
+        LogController.storeRegistry(2001, formatter.format(date),null,null);
+    }
+
+    private void changeToLoginScreen() {
         JTextField loginArea = new JTextField();
         loginArea.setPreferredSize(new Dimension(200, 30));
         JLabel loginLabel = new JLabel("Login:");
-
-        Ctrl = CtrlRules.getCtrlRules();
-        Ctrl.addObserver(this);
 
         JPanel menu = new JPanel();
         menu.setPreferredSize(new Dimension(250, 200));
@@ -70,26 +84,20 @@ public class AuthContainer extends JPanel implements Observer {
 
                     Date date = new Date(System.currentTimeMillis());
                     try {
-                        if ((int)response[1] == 0)
-                            LogController.storeRegistry(2003, formatter.format(date),null,null);
-                        else
-                            LogController.storeRegistry(2004, formatter.format(date),null,null);
-                    } catch (SQLException ex) {
+                        if (!(boolean)AuthController.isBlocked(Login)){
+                            LogController.storeRegistry(2003, formatter.format(date), null, new UserModel(Login));
+                            date = new Date(System.currentTimeMillis());
+                            LogController.storeRegistry(2002, formatter.format(date),null,new UserModel(Login));
+                            changeToPasswordScreen();
+                        }
+                        else {
+                            LogController.storeRegistry(2004, formatter.format(date), null, new UserModel(Login));
+                            JOptionPane.showMessageDialog(null, "Essas credenciais estão bloqueadas temporariamente!");
+                        }
+                    } catch (SQLException | ParseException ex) {
                         ex.printStackTrace();
                     }
 
-                    try {
-                        changeToPasswordScreen();
-                    } catch (SQLException ex) {
-                        ex.printStackTrace();
-                    }
-
-                    date = new Date(System.currentTimeMillis());
-                    try {
-                        LogController.storeRegistry(2002, formatter.format(date),null,null);
-                    } catch (SQLException ex) {
-                        ex.printStackTrace();
-                    }
                 }
                 else{
                     Date date = new Date(System.currentTimeMillis());
@@ -104,12 +112,6 @@ public class AuthContainer extends JPanel implements Observer {
         });
         this.add(menu);
         this.add(confirmBtn);
-
-        Date date = new Date(System.currentTimeMillis());
-        LogController.storeRegistry(1001, formatter.format(date),null,null);
-
-        date = new Date(System.currentTimeMillis());
-        LogController.storeRegistry(2001, formatter.format(date),null,null);
     }
 
     private void changeToPasswordScreen() throws SQLException {
@@ -139,16 +141,43 @@ public class AuthContainer extends JPanel implements Observer {
             public void actionPerformed(ActionEvent e) {
                 try {
                     if (AuthController.validatePassword(Login, passwordWithNumbersArray)) {
-                        changeToFileAuthenticationScreen();
-
                         Date date = new Date(System.currentTimeMillis());
                         LogController.storeRegistry(3003, formatter.format(date),null, new UserModel(Login));
 
                         date = new Date(System.currentTimeMillis());
                         LogController.storeRegistry(3002, formatter.format(date),null, new UserModel(Login));
+
+                        changeToFileAuthenticationScreen();
                     }
                     else{
                         JOptionPane.showMessageDialog(null, "Senha incorreta!","ERRO", JOptionPane.OK_OPTION);
+                        if (PasswordTries < 3)
+                        {
+                            PasswordTries++;
+                            if (PasswordTries == 1) {
+                                Date date = new Date(System.currentTimeMillis());
+                                LogController.storeRegistry(3004, formatter.format(date), null, new UserModel(Login));
+                            }
+                            else if (PasswordTries == 2) {
+                                Date date = new Date(System.currentTimeMillis());
+                                LogController.storeRegistry(3005, formatter.format(date), null, new UserModel(Login));
+                            }
+                            else {
+                                Date date = new Date(System.currentTimeMillis());
+                                LogController.storeRegistry(3006, formatter.format(date), null, new UserModel(Login));
+
+                                AuthController.blockUser(Login, formatter.format(date));
+
+                                date = new Date(System.currentTimeMillis());
+                                LogController.storeRegistry(3007, formatter.format(date), null, new UserModel(Login));
+
+                                JOptionPane.showMessageDialog(null, "Usuário bloqueado!","Atenção", JOptionPane.OK_OPTION);
+
+                                Clear();
+                                changeToLoginScreen();
+                            }
+                        }
+
                         passwordText = "";
                         pfPassword.setText(passwordText);
                         passwordWithNumbersArray.clear();
@@ -157,7 +186,7 @@ public class AuthContainer extends JPanel implements Observer {
                     ex.printStackTrace();
                 } catch (UnsupportedEncodingException ex) {
                     ex.printStackTrace();
-                } catch (NoSuchAlgorithmException ex) {
+                } catch (NoSuchAlgorithmException | ParseException ex) {
                     ex.printStackTrace();
                 }
             }
@@ -182,6 +211,14 @@ public class AuthContainer extends JPanel implements Observer {
             public void actionPerformed(ActionEvent e) {
                 fileChooser.showOpenDialog(null);
                 File f = fileChooser.getSelectedFile();
+                if (f == null) {
+                    Date date = new Date(System.currentTimeMillis());
+                    try {
+                        LogController.storeRegistry(4004, formatter.format(date),null, new UserModel(Login));
+                    } catch (SQLException throwables) {
+                        throwables.printStackTrace();
+                    }
+                }
                 String filename = f.getAbsolutePath();
             }
         });
@@ -198,37 +235,68 @@ public class AuthContainer extends JPanel implements Observer {
             public void actionPerformed(ActionEvent e) {
                 try {
                     PrivateKey userPrivateKey = AuthController.getBased64PrivateKey(secretPhraseArea.getText(), fileChooser.getSelectedFile(), Login);
-                    PublicKey userPublicKey = AuthController.getUserPublicKeyFromCertificate(Login);
-
-                    byte[] b = new byte[2048];
-                    new SecureRandom().nextBytes(b);
-
-                    Signature sig = Signature.getInstance("SHA1WithRSA");
-                    sig.initSign(userPrivateKey);
-                    sig.update(b);
-                    byte[] signature = sig.sign();
-
-                    sig.initVerify(userPublicKey);
-                    sig.update(b);
-                    try {
-                        if (sig.verify(signature)) {
-                            changeToAuthSystem(userPrivateKey, userPublicKey);
-
-                            Date date = new Date(System.currentTimeMillis());
-                            LogController.storeRegistry(4003, formatter.format(date),null, new UserModel(Login));
-
+                    if(userPrivateKey == null) {
+                        JOptionPane.showMessageDialog(null, "Frase secreta ou chave privada incorreta!","ERRO", JOptionPane.OK_OPTION);
+                        Date date = new Date(System.currentTimeMillis());
+                        LogController.storeRegistry(4006, formatter.format(date),null, new UserModel(Login));
+                        PrivateKeyTries++;
+                        if(PrivateKeyTries == 3)  {
                             date = new Date(System.currentTimeMillis());
-                            LogController.storeRegistry(4002, formatter.format(date),null, new UserModel(Login));
+                            LogController.storeRegistry(4007, formatter.format(date),null, new UserModel(Login));
 
-                        } else{
-                            JOptionPane.showMessageDialog(null, "Frase secreta ou chave privada incorreta!","ERRO", JOptionPane.OK_OPTION);
-                            Date date = new Date(System.currentTimeMillis());
-                            LogController.storeRegistry(4006, formatter.format(date),null, new UserModel(Login));
+                            AuthController.blockUser(Login, formatter.format(date));
+
+                            JOptionPane.showMessageDialog(null, "Usuário bloqueado!","Atenção", JOptionPane.OK_OPTION);
+
+                            Clear();
+                            changeToLoginScreen();
                         }
-                    } catch (SignatureException se) {
-                        System.out.println( "Singature failed" );
-                    } catch (ClassNotFoundException classNotFoundException) {
-                        classNotFoundException.printStackTrace();
+                    }
+                    else {
+                        PublicKey userPublicKey = AuthController.getUserPublicKeyFromCertificate(Login);
+
+                        byte[] b = new byte[2048];
+                        new SecureRandom().nextBytes(b);
+
+                        Signature sig = Signature.getInstance("SHA1WithRSA");
+                        sig.initSign(userPrivateKey);
+                        sig.update(b);
+                        byte[] signature = sig.sign();
+
+                        sig.initVerify(userPublicKey);
+                        sig.update(b);
+                        try {
+                            if (sig.verify(signature)) {
+                                Date date = new Date(System.currentTimeMillis());
+                                LogController.storeRegistry(4003, formatter.format(date), null, new UserModel(Login));
+
+                                date = new Date(System.currentTimeMillis());
+                                LogController.storeRegistry(4002, formatter.format(date), null, new UserModel(Login));
+
+                                changeToAuthSystem(userPrivateKey, userPublicKey);
+                            } else {
+                                JOptionPane.showMessageDialog(null, "Frase secreta ou chave privada incorreta!", "ERRO", JOptionPane.OK_OPTION);
+                                Date date = new Date(System.currentTimeMillis());
+                                LogController.storeRegistry(4006, formatter.format(date), null, new UserModel(Login));
+                                if (PrivateKeyTries < 3) {
+                                    PrivateKeyTries++;
+                                } else {
+                                    date = new Date(System.currentTimeMillis());
+                                    LogController.storeRegistry(4007, formatter.format(date), null, new UserModel(Login));
+
+                                    AuthController.blockUser(Login, formatter.format(date));
+
+                                    JOptionPane.showMessageDialog(null, "Usuário bloqueado!", "Atenção", JOptionPane.OK_OPTION);
+
+                                    Clear();
+                                    changeToLoginScreen();
+                                }
+                            }
+                        } catch (SignatureException | ParseException se) {
+                            System.out.println("Singature failed");
+                        } catch (ClassNotFoundException classNotFoundException) {
+                            classNotFoundException.printStackTrace();
+                        }
                     }
                 } catch (NoSuchAlgorithmException | NoSuchProviderException noSuchAlgorithmException) {
                     noSuchAlgorithmException.printStackTrace();
@@ -250,6 +318,8 @@ public class AuthContainer extends JPanel implements Observer {
                     throwables.printStackTrace();
                 } catch (SignatureException signatureException) {
                     signatureException.printStackTrace();
+                } catch (ParseException parseException) {
+                    parseException.printStackTrace();
                 }
             }
         });
@@ -287,6 +357,7 @@ public class AuthContainer extends JPanel implements Observer {
             model.setQtd_Acessos(rs.getInt(9)+1);
             model.setPrivateKey(userPrivateKey);
             model.setPublicKey(userPublicKey);
+            model.setQtd_Consultas(rs.getInt(10));
         }
         DbSingletonController.closeConnection();
 
