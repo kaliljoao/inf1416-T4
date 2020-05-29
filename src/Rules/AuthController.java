@@ -3,6 +3,7 @@ package Rules;
 import Models.UserModel;
 
 import javax.crypto.*;
+import javax.swing.*;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -14,7 +15,7 @@ import java.security.cert.X509Certificate;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.sql.*;
-import java.text.SimpleDateFormat;
+import java.text.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -64,6 +65,73 @@ public class AuthController {
         } catch (Exception e) {
             return new Object[] { false , -1 };
         }
+    }
+
+    public static void blockUser (String LoginNome, String dataHora) throws SQLException, ParseException {
+        DbSingletonController.createConnection();
+        DbSingletonController.createStatement();
+
+        if(!(boolean)isBlocked(LoginNome)) {
+            ResultSet rs = null;
+            rs = DbSingletonController.executeQuery(String.format("select * from RegistroAcesso where LoginNome='%s';", LoginNome));
+            if (rs != null && rs.next()){
+                String query = "UPDATE RegistroAcesso set HoraAcesso = " + String.format("'%s'", dataHora) + " WHERE LoginNome = "+ String.format("'%s';", LoginNome);
+                DbSingletonController.executeUpdate(query);
+                query = "UPDATE usuario set isBlocked = 1 WHERE LoginNome = "+ String.format("'%s';", LoginNome);
+                DbSingletonController.executeUpdate(query);
+            }
+            else {
+                String query = "INSERT INTO RegistroAcesso (LoginNome, HoraAcesso) VALUES " + String.format("('%s','%s');", LoginNome, dataHora);
+                DbSingletonController.executeUpdate(query);
+                query = "UPDATE usuario set isBlocked = 1 WHERE LoginNome = "+ String.format("'%s';", LoginNome);
+                DbSingletonController.executeUpdate(query);
+            }
+        }
+    }
+
+    public static Object isBlocked(String LoginNome) throws SQLException, ParseException {
+        DbSingletonController.createConnection();
+        DbSingletonController.createStatement();
+
+        ResultSet rs = null;
+        rs = DbSingletonController.executeQuery(String.format("select isBlocked from Usuario where LoginNome='%s';", LoginNome));
+        if (rs != null && rs.next()) {
+            int isBlocked = rs.getInt(1);
+            if(isBlocked == 0) return false;
+            else {
+                ResultSet new_rs = DbSingletonController.executeQuery(String.format("select HoraAcesso from RegistroAcesso where LoginNome='%s';", LoginNome));
+                if (new_rs != null && new_rs.next()){
+                    String hora = new_rs.getString(1);
+                    Date data = formatter.parse(hora);
+                    Date dateMomento = new Date(System.currentTimeMillis());
+
+                    long diferenca = dateMomento.getTime() - data.getTime();
+
+                    if(diferenca > new Long(120000)){
+                        unlockUser(LoginNome);
+                        return false;
+                    }
+                    else{
+                        return true;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    public static void unlockUser (String LoginNome) throws SQLException {
+        DbSingletonController.createConnection();
+        DbSingletonController.createStatement();
+        String query = "UPDATE usuario set isBlocked = 0 WHERE LoginNome = "+ String.format("'%s';", LoginNome);
+        DbSingletonController.executeUpdate(query);
+    }
+
+    public static void increaseConsultas (String LoginNome, int qtdConsultas) throws SQLException {
+        DbSingletonController.createConnection();
+        DbSingletonController.createStatement();
+        String query = "UPDATE usuario set Consultas = "+ String.valueOf(qtdConsultas) +" WHERE LoginNome = "+ String.format("'%s';", LoginNome);
+        DbSingletonController.executeUpdate(query);
     }
 
     public static boolean validatePassword(String login, ArrayList<Object> digits) throws SQLException, UnsupportedEncodingException, NoSuchAlgorithmException {
@@ -144,7 +212,7 @@ public class AuthController {
     }
 
     public static String getPasswordHash (String key, String salt, boolean isAltering) throws SQLException {
-        if(isAltering) {
+        if(isAltering) { // Criando usuario ou alterando senha
             if (validatePassword(key)) {
                 byte[] calculated_hash;
                 String calculated_hash_HEX;
@@ -233,22 +301,22 @@ public class AuthController {
         byte[] newPlainText = null;
         try {
             newPlainText = cipher.doFinal(Files.readAllBytes(keyPath));
+            String userKeyBased64 = new String(newPlainText, "UTF8");
+            String[] userKeyBased64Array = Arrays.copyOfRange(userKeyBased64.split("\n"),1,userKeyBased64.split("\n").length -1);
+            String only64BasedPrivateKey = Arrays.toString(userKeyBased64Array);
+            only64BasedPrivateKey = only64BasedPrivateKey.substring(1,only64BasedPrivateKey.length() - 1);
+            byte[] encodedKeybased64 = Base64.getMimeDecoder().decode(only64BasedPrivateKey);
+
+            PKCS8EncodedKeySpec encoded = new PKCS8EncodedKeySpec(encodedKeybased64);
+            KeyFactory factory = KeyFactory.getInstance("RSA");
+            return factory.generatePrivate(encoded);
         }
-        catch (Exception e){ //TRATAR ERRO 4004
+        catch (BadPaddingException e) {
             java.util.Date date = new Date(System.currentTimeMillis());
-            LogController.storeRegistry(4005, formatter.format(date),null, new UserModel(Login));
+            LogController.storeRegistry(4005, formatter.format(date), null, new UserModel(Login));
+            JOptionPane.showMessageDialog(null, "Frase secreta inválida!","ERRO", JOptionPane.OK_OPTION);
+            return null;
         }
-
-        String userKeyBased64 = new String(newPlainText, "UTF8");
-
-        String[] userKeyBased64Array = Arrays.copyOfRange(userKeyBased64.split("\n"),1,userKeyBased64.split("\n").length -1);
-        String only64BasedPrivateKey = Arrays.toString(userKeyBased64Array);
-        only64BasedPrivateKey = only64BasedPrivateKey.substring(1,only64BasedPrivateKey.length() - 1);
-        byte[] encodedKeybased64 = Base64.getMimeDecoder().decode(only64BasedPrivateKey);
-
-        PKCS8EncodedKeySpec encoded = new PKCS8EncodedKeySpec(encodedKeybased64);
-        KeyFactory factory = KeyFactory.getInstance("RSA");
-        return factory.generatePrivate(encoded);
     }
 
     public static void setUserCertificate(String login) throws SQLException, FileNotFoundException {
@@ -257,7 +325,7 @@ public class AuthController {
 
         String query = "Update Usuario" +
                        " set certificado = ?" +
-                       " where email='jpkalil@keener.io' ";
+                       " where email='"+login+"' ";
 
         PreparedStatement statement = DbSingletonController.setPreparedStatement(query);
 
@@ -315,17 +383,14 @@ public class AuthController {
 
         try {
             newEnvPlainText = cipher.doFinal(Files.readAllBytes(envPath));
-            date = new Date(System.currentTimeMillis());
-            LogController.storeRegistry(8013, formatter.format(date),envFile.getName(), model);
+            if(!isIndex) {
+                date = new Date(System.currentTimeMillis());
+                LogController.storeRegistry(8013, formatter.format(date), envFile.getName(), model);
+            }
         } catch (BadPaddingException e) {
-            if (isIndex) {
-                date = new Date(System.currentTimeMillis());
-                LogController.storeRegistry(8007, formatter.format(date),null, model);
-            }
-            else {
-                date = new Date(System.currentTimeMillis());
-                LogController.storeRegistry(8015, formatter.format(date), envFile.getName(), model);
-            }
+            date = new Date(System.currentTimeMillis());
+            LogController.storeRegistry(8015, formatter.format(date),envFile.getName(), model);
+            return null;
         }
         String seedGenerated = new String(newEnvPlainText, "UTF8");
 
@@ -366,6 +431,7 @@ public class AuthController {
                 date = new Date(System.currentTimeMillis());
                 LogController.storeRegistry(8015, formatter.format(date), encFile.getName(), model);
             }
+            return null;
         }
         String encPlainText = new String(newEncPlainTextBytes, "UTF8");
 
@@ -376,7 +442,9 @@ public class AuthController {
         try {
             sig.initVerify(model.getPublicKey());
         } catch (InvalidKeyException e) {
-            e.printStackTrace();
+            date = new Date(System.currentTimeMillis());
+            LogController.storeRegistry(8016, formatter.format(date), encFile.getName(), model);
+            return null;
         }
         sig.update(newEncPlainTextBytes);
 
@@ -384,12 +452,11 @@ public class AuthController {
         try {
             if (sig.verify(asdFileByteArray)) {
                 date = new Date(System.currentTimeMillis());
-                LogController.storeRegistry(8006, formatter.format(date), null, model);
-
-                if (isIndex)
+                if (isIndex){
+                    LogController.storeRegistry(8006, formatter.format(date), null, model);
                     return encPlainText.split("\n");
+                }
                 else {
-                    date = new Date(System.currentTimeMillis());
                     LogController.storeRegistry(8014, formatter.format(date), encFile.getName(), model);
                     return newEncPlainTextBytes;
                 }

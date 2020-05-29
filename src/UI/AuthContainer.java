@@ -54,16 +54,13 @@ public class AuthContainer extends JPanel implements Observer {
         Ctrl = CtrlRules.getCtrlRules();
         Ctrl.addObserver(this);
 
-        changeToLoginScreen();
-
         Date date = new Date(System.currentTimeMillis());
         LogController.storeRegistry(1001, formatter.format(date),null,null);
 
-        date = new Date(System.currentTimeMillis());
-        LogController.storeRegistry(2001, formatter.format(date),null,null);
+        changeToLoginScreen();
     }
 
-    private void changeToLoginScreen() {
+    private void changeToLoginScreen() throws SQLException {
         JTextField loginArea = new JTextField();
         loginArea.setPreferredSize(new Dimension(200, 30));
         JLabel loginLabel = new JLabel("Login:");
@@ -112,10 +109,19 @@ public class AuthContainer extends JPanel implements Observer {
         });
         this.add(menu);
         this.add(confirmBtn);
+
+        Date date = new Date(System.currentTimeMillis());
+        LogController.storeRegistry(2001, formatter.format(date),null,null);
     }
 
     private void changeToPasswordScreen() throws SQLException {
         Clear();
+
+        arrBtns = new JButton[]{new JButton(), new JButton(), new JButton(), new JButton(), new JButton()};
+        PasswordTries = 0;
+        passwordText = "";
+        passwordWithNumbersArray.clear();
+
         JLabel lblPassword = new JLabel("Senha:");
         JPasswordField pfPassword = new JPasswordField();
         pfPassword.setPreferredSize(new Dimension(150, 30));
@@ -174,6 +180,13 @@ public class AuthContainer extends JPanel implements Observer {
                                 JOptionPane.showMessageDialog(null, "Usuário bloqueado!","Atenção", JOptionPane.OK_OPTION);
 
                                 Clear();
+                                PasswordTries = 0;
+                                pfPassword.setText(passwordText);
+                                passwordWithNumbersArray.clear();
+
+                                date = new Date(System.currentTimeMillis());
+                                LogController.storeRegistry(3002, formatter.format(date),null, new UserModel(Login));
+
                                 changeToLoginScreen();
                             }
                         }
@@ -236,9 +249,8 @@ public class AuthContainer extends JPanel implements Observer {
                 try {
                     PrivateKey userPrivateKey = AuthController.getBased64PrivateKey(secretPhraseArea.getText(), fileChooser.getSelectedFile(), Login);
                     if(userPrivateKey == null) {
-                        JOptionPane.showMessageDialog(null, "Frase secreta ou chave privada incorreta!","ERRO", JOptionPane.OK_OPTION);
-                        Date date = new Date(System.currentTimeMillis());
-                        LogController.storeRegistry(4006, formatter.format(date),null, new UserModel(Login));
+
+                        Date date;
                         PrivateKeyTries++;
                         if(PrivateKeyTries == 3)  {
                             date = new Date(System.currentTimeMillis());
@@ -249,6 +261,13 @@ public class AuthContainer extends JPanel implements Observer {
                             JOptionPane.showMessageDialog(null, "Usuário bloqueado!","Atenção", JOptionPane.OK_OPTION);
 
                             Clear();
+                            PrivateKeyTries = 0;
+                            PasswordTries = 0;
+                            passwordWithNumbersArray.clear();
+
+                            date = new Date(System.currentTimeMillis());
+                            LogController.storeRegistry(4002, formatter.format(date),null, new UserModel(Login));
+
                             changeToLoginScreen();
                         }
                     }
@@ -275,7 +294,7 @@ public class AuthContainer extends JPanel implements Observer {
 
                                 changeToAuthSystem(userPrivateKey, userPublicKey);
                             } else {
-                                JOptionPane.showMessageDialog(null, "Frase secreta ou chave privada incorreta!", "ERRO", JOptionPane.OK_OPTION);
+                                JOptionPane.showMessageDialog(null, "Falha na assinatura digital!", "ERRO", JOptionPane.OK_OPTION);
                                 Date date = new Date(System.currentTimeMillis());
                                 LogController.storeRegistry(4006, formatter.format(date), null, new UserModel(Login));
                                 if (PrivateKeyTries < 3) {
@@ -337,10 +356,10 @@ public class AuthContainer extends JPanel implements Observer {
         int sl = screenSize.width;
         int sa = screenSize.height;
         int x = sl / 2 - 550 / 2;
-        int y = sa / 2 - 250 / 2;
+        int y = sa / 2 - 550 / 2;
 
         JFrame systemFrame = new JFrame();
-        systemFrame.setBounds(x, y, 550, 280);
+        systemFrame.setBounds(x, y, 550, 550);
 
         CloseItself();
 

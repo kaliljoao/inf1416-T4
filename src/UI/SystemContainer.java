@@ -60,7 +60,7 @@ public class SystemContainer extends JPanel implements Observer {
 
     private void builSystemUI ( UserModel model ) {
         JPanel menu = new JPanel();
-        menu.setPreferredSize(new Dimension(450, 280));
+        menu.setPreferredSize(new Dimension(450, 550));
 
         JLabel loginLabel = new JLabel("Login: "+model.getLoginNome() + " | ");
         JLabel grupoLabel = new JLabel("Grupo: "+model.getGrupo().toString()+ " | ");
@@ -139,6 +139,8 @@ public class SystemContainer extends JPanel implements Observer {
 
                 Date date = new Date(System.currentTimeMillis());
                 try {
+                    LogController.storeRegistry(5005, formatter.format(date),null, model);
+                    date = new Date(System.currentTimeMillis());
                     LogController.storeRegistry(9001, formatter.format(date),null, model);
                 } catch (SQLException ex) {
                     ex.printStackTrace();
@@ -150,8 +152,7 @@ public class SystemContainer extends JPanel implements Observer {
                         date = new Date(System.currentTimeMillis());
                         LogController.storeRegistry(9003, formatter.format(date),null, model);
 
-                        date = new Date(System.currentTimeMillis());
-                        LogController.storeRegistry(5005, formatter.format(date),null, model);
+
                         CloseItself();
                     } catch (SQLException ex) {
                         ex.printStackTrace();
@@ -183,7 +184,7 @@ public class SystemContainer extends JPanel implements Observer {
         JFileChooser fodlerChooser = new JFileChooser();
         fodlerChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
         JPanel menu = new JPanel();
-        menu.setPreferredSize(new Dimension(550, 280));
+        menu.setPreferredSize(new Dimension(550, 550));
 
         JLabel loginLabel = new JLabel("Login: "+model.getLoginNome() + " | ");
         JLabel grupoLabel = new JLabel("Grupo: "+model.getGrupo().toString()+ " | ");
@@ -294,11 +295,16 @@ public class SystemContainer extends JPanel implements Observer {
                                                     if (fos != null) {
                                                         fos.close();
                                                     }
+                                                    JOptionPane.showMessageDialog(null, "Arquivo decriptado e salvo com sucesso!", "Atenção", JOptionPane.OK_OPTION);
                                                 }
-                                                JOptionPane.showMessageDialog(null, "Arquivo decriptado com sucesso!", "Atenção", JOptionPane.OK_OPTION);
-                                            } else {
+                                                else {
+                                                    JOptionPane.showMessageDialog(null, "Erro de decriptação do arquivo!", "Atenção", JOptionPane.OK_OPTION);
+                                                }
+                                            }
+                                            else {
                                                 date = new Date(System.currentTimeMillis());
                                                 LogController.storeRegistry(8012, formatter.format(date), listFiles[finalI].split(" ")[1], model);
+                                                JOptionPane.showMessageDialog(null, "Você não tem acesso a esse arquivo!", "Atenção", JOptionPane.OK_OPTION);
                                             }
 
                                         } catch (NoSuchPaddingException noSuchPaddingException) {
@@ -488,14 +494,14 @@ public class SystemContainer extends JPanel implements Observer {
                         int result = JOptionPane.showConfirmDialog(null, "Este é seu certificado?\n"+registerInformations, "Confirma", JOptionPane.OK_CANCEL_OPTION);
                         if (result == JOptionPane.OK_OPTION) {
                             String salt = AuthController.generateSalt();
-                            String newHash = AuthController.getPasswordHash(passwordField.getPassword().toString(), salt, true);
+                            String newHash = AuthController.getPasswordHash(passwordField.getText(), salt, true);
                             if (newHash != "nok") {
                                 int grupoId = comboBox.getSelectedIndex() + 1;
                                 int acessos = 0;
                                 int isBlocked = 0;
 
                                 boolean is64BasedCertificate = false;
-                                String cert = "";
+                                String cert = generateCert(f[0]);
 
 
                                 String LoginNome = certificate.getSubjectDN().getName().split(",")[0].split("=")[1];
@@ -569,6 +575,25 @@ public class SystemContainer extends JPanel implements Observer {
         CertificateFactory cf = CertificateFactory.getInstance("X.509");
         ByteArrayInputStream bytes = new ByteArrayInputStream(cert.getBytes());
         return  (X509Certificate) cf.generateCertificate(bytes);
+    }
+
+    private String generateCert(File f) throws IOException {
+        boolean is64BasedCertificate = false;
+        String cert = "";
+        BufferedReader br = new BufferedReader(new FileReader(f));
+        String st;
+        while ((st = br.readLine()) != null) {
+            if (st.equals("-----BEGIN CERTIFICATE-----")) {
+                is64BasedCertificate = true;
+                cert += st + "\n";
+                continue;
+            }
+            if (is64BasedCertificate == true) {
+                cert += st + "\n";
+                continue;
+            }
+        }
+        return cert;
     }
 
     private void changeToAlterPasswordScreen( UserModel model ) throws SQLException {
